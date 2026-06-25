@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}User Management — CivicPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">User Management</h1>
+    <p class="page-sub">View, disable, or promote user accounts.</p>
+  </div>
+</div>
+
+{% if users %}
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Joined</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr class="{% if not u.is_active %}disabled-row{% endif %}">
+        <td>
+          <div class="user-row">
+            <span class="user-avatar-sm">{{ u.name[0].upper() }}</span>
+            <span>{{ u.name }}</span>
+          </div>
+        </td>
+        <td>{{ u.email }}</td>
+        <td>{{ u.phone or '—' }}</td>
+        <td><span class="role-badge {{ u.role }}">{{ u.role|title }}</span></td>
+        <td>
+          {% if u.is_active %}
+            <span class="status-badge status-resolved"><span class="status-dot-sm"></span> Active</span>
+          {% else %}
+            <span class="status-badge status-withdrawn"><span class="status-dot-sm"></span> Disabled</span>
+          {% endif %}
+        </td>
+        <td>{{ u.created_at[:10] if u.created_at else '—' }}</td>
+        <td>
+          {% if u.id != session.user_id %}
+          <div class="action-btns">
+            <form method="POST" action="{{ url_for('toggle_user', user_id=u.id) }}" class="inline-form">
+              <button type="submit" class="btn btn-ghost btn-xs"
+                      onclick="return confirm('{{ 'Disable' if u.is_active else 'Enable' }} this user?')">
+                <i class="bi bi-{% if u.is_active %}person-slash{% else %}person-check{% endif %}"></i>
+                {{ 'Disable' if u.is_active else 'Enable' }}
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('promote_user', user_id=u.id) }}" class="inline-form">
+              <button type="submit" class="btn btn-ghost btn-xs"
+                      onclick="return confirm('Change role to {{ 'admin' if u.role == 'user' else 'user' }}?')">
+                <i class="bi bi-{% if u.role == 'user' %}arrow-up-circle{% else %}arrow-down-circle{% endif %}"></i>
+                {{ 'Promote to Admin' if u.role == 'user' else 'Demote to User' }}
+              </button>
+            </form>
+          </div>
+          {% else %}
+          <span class="text-muted">You</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon"><i class="bi bi-people"></i></div>
+  <h3>No users found</h3>
+</div>
+{% endif %}
+{% endblock %}

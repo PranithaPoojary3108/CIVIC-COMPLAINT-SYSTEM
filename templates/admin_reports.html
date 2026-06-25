@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Analytics & Reports — CivicPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Analytics & Reports</h1>
+    <p class="page-sub">Insights across all civic complaints.</p>
+  </div>
+  <a href="{{ url_for('export_csv') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-download"></i> Export CSV
+  </a>
+</div>
+
+<div class="report-row">
+  <div class="report-card">
+    <p class="report-label">Total complaints</p>
+    <h2>{{ stats.total }}</h2>
+  </div>
+  <div class="report-card">
+    <p class="report-label">Resolution rate</p>
+    <h2>{{ stats.resolution_rate }}%</h2>
+  </div>
+  <div class="report-card">
+    <p class="report-label">Avg resolution</p>
+    <h2>{{ stats.average_resolution_days }} days</h2>
+  </div>
+  <div class="report-card">
+    <p class="report-label">This month</p>
+    <h2>{{ stats.this_month }}</h2>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="section-card">
+    <h2>Complaints by Category</h2>
+    <canvas id="categoryChart" height="220"></canvas>
+  </div>
+  <div class="section-card">
+    <h2>Status Breakdown</h2>
+    <canvas id="statusChart" height="220"></canvas>
+  </div>
+  <div class="section-card chart-wide">
+    <h2>Monthly Complaint Trend</h2>
+    <canvas id="trendChart" height="180"></canvas>
+  </div>
+  <div class="section-card">
+    <h2>Priority Distribution</h2>
+    <canvas id="priorityChart" height="220"></canvas>
+  </div>
+  <div class="section-card">
+    <h2>Resolution Rate</h2>
+    <div class="resolution-meter">
+      <div class="meter-circle" data-pct="{{ stats.resolution_rate }}">
+        <svg viewBox="0 0 100 100" class="donut">
+          <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" stroke-width="10"/>
+          <circle cx="50" cy="50" r="40" fill="none" stroke="#10b981" stroke-width="10"
+                  stroke-dasharray="{{ stats.resolution_rate * 2.51327 }} 251.327"
+                  stroke-linecap="round" transform="rotate(-90 50 50)"/>
+        </svg>
+        <div class="meter-label">{{ stats.resolution_rate }}%</div>
+      </div>
+      <div class="meter-legend">
+        <div><span class="dot resolved"></span> Resolved: {{ stats.resolved }}</div>
+        <div><span class="dot in-progress"></span> In Progress: {{ stats.in_progress }}</div>
+        <div><span class="dot pending"></span> Pending: {{ stats.pending }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-card">
+  <h2>Recent Complaints</h2>
+  <div class="table-wrap">
+    <table class="simple-table">
+      <thead>
+        <tr><th>ID</th><th>Title</th><th>Category</th><th>Status</th><th>Priority</th><th>Date</th></tr>
+      </thead>
+      <tbody>
+        {% for c in complaints[:20] %}
+        <tr>
+          <td>{{ c.ref_id or c.id[:8] }}</td>
+          <td><a href="{{ url_for('view_complaint', complaint_id=c.id) }}">{{ c.title }}</a></td>
+          <td><span class="tag-cat">{{ c.category }}</span></td>
+          <td><span class="status-badge status-{{ c.status|lower|replace(' ','-') }}"><span class="status-dot-sm"></span>{{ c.status }}</span></td>
+          <td><span class="tag-pri {{ c.priority|lower }}">{{ c.priority }}</span></td>
+          <td>{{ c.created_at[:10] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const catData = {{ stats.by_category | tojson }};
+const monthData = {{ stats.monthly_trend | tojson }};
+
+// Category doughnut
+new Chart(document.getElementById('categoryChart'), {
+  type: 'doughnut',
+  data: {
+    labels: Object.keys(catData),
+    datasets: [{ data: Object.values(catData), backgroundColor: [
+      '#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'
+    ], borderWidth: 2 }]
+  },
+  options: { plugins: { legend: { position: 'bottom' } } }
+});
+
+// Status bar
+new Chart(document.getElementById('statusChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Pending', 'In Progress', 'Resolved'],
+    datasets: [{ data: [{{ stats.pending }}, {{ stats.in_progress }}, {{ stats.resolved }}],
+      backgroundColor: ['#f59e0b','#3b82f6','#10b981'], borderRadius: 6 }]
+  },
+  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+});
+
+// Trend line
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: Object.keys(monthData),
+    datasets: [{ label: 'Complaints', data: Object.values(monthData),
+      borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)',
+      fill: true, tension: 0.4, pointRadius: 4 }]
+  },
+  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+});
+
+// Priority doughnut
+new Chart(document.getElementById('priorityChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['High', 'Medium', 'Low'],
+    datasets: [{ data: [{{ stats.high }}, {{ stats.medium }}, {{ stats.low }}],
+      backgroundColor: ['#ef4444','#f59e0b','#10b981'], borderWidth: 2 }]
+  },
+  options: { plugins: { legend: { position: 'bottom' } } }
+});
+</script>
+{% endblock %}

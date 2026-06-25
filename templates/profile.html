@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}My Profile — CivicPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">My Profile</h1>
+    <p class="page-sub">Manage your account and preferences.</p>
+  </div>
+</div>
+
+<div class="profile-layout">
+  <div class="profile-left">
+    <div class="profile-card">
+      <div class="profile-avatar-lg">{{ session.user_name[0].upper() }}</div>
+      <h2 class="profile-name">{{ user.name if user else session.user_name }}</h2>
+      <p class="profile-email">{{ user.email if user else session.user_email }}</p>
+      <span class="role-badge {{ user.role if user else 'user' }}">{{ user.role|title if user else 'User' }}</span>
+      <p class="profile-joined">Member since {{ user.created_at[:10] if user and user.created_at else 'N/A' }}</p>
+    </div>
+
+    <div class="stat-row-vertical">
+      <div class="stat-card"><div class="stat-val">{{ stats.total }}</div><div class="stat-lbl">Total</div></div>
+      <div class="stat-card pending"><div class="stat-val">{{ stats.pending }}</div><div class="stat-lbl">Pending</div></div>
+      <div class="stat-card in-progress"><div class="stat-val">{{ stats.in_progress }}</div><div class="stat-lbl">In Progress</div></div>
+      <div class="stat-card resolved"><div class="stat-val">{{ stats.resolved }}</div><div class="stat-lbl">Resolved</div></div>
+    </div>
+  </div>
+
+  <div class="profile-right">
+    <div class="form-card">
+      <h3 class="form-card-title"><i class="bi bi-person-gear"></i> Edit Profile</h3>
+      <form method="POST">
+        <input type="hidden" name="action" value="update_profile">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" name="name" class="form-input" value="{{ user.name if user else session.user_name }}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input type="tel" name="phone" class="form-input" value="{{ user.phone if user else '' }}" placeholder="+91 XXXXX XXXXX">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email (cannot change)</label>
+          <input type="email" class="form-input" value="{{ user.email if user else session.user_email }}" disabled>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </form>
+    </div>
+
+    <div class="form-card">
+      <h3 class="form-card-title"><i class="bi bi-shield-lock"></i> Change Password</h3>
+      <form method="POST">
+        <input type="hidden" name="action" value="change_password">
+        <div class="form-group">
+          <label class="form-label">Current Password</label>
+          <input type="password" name="current_password" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">New Password</label>
+          <input type="password" name="new_password" class="form-input" minlength="6" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm New Password</label>
+          <input type="password" name="confirm_password" class="form-input" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Change Password</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

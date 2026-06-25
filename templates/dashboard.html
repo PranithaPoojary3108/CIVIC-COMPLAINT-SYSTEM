@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}My Complaints — CivicPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">My Complaints</h1>
+    <p class="page-sub">Track the status of everything you've reported.</p>
+  </div>
+  <a href="{{ url_for('new_complaint') }}" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> New Complaint
+  </a>
+</div>
+
+<div class="stat-row">
+  <div class="stat-card">
+    <div class="stat-val">{{ counts.total }}</div>
+    <div class="stat-lbl">Total</div>
+  </div>
+  <div class="stat-card pending">
+    <div class="stat-val">{{ counts.pending }}</div>
+    <div class="stat-lbl">Pending</div>
+  </div>
+  <div class="stat-card in-progress">
+    <div class="stat-val">{{ counts.in_progress }}</div>
+    <div class="stat-lbl">In Progress</div>
+  </div>
+  <div class="stat-card resolved">
+    <div class="stat-val">{{ counts.resolved }}</div>
+    <div class="stat-lbl">Resolved</div>
+  </div>
+</div>
+
+{% if complaints %}
+<form method="get" class="filter-form">
+  <div class="filter-grid">
+    <div class="filter-field">
+      <label>Status</label>
+      <select name="status" class="form-select">
+        <option value="">All</option>
+        {% for s in ['Pending', 'In Progress', 'Resolved'] %}
+        <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>Category</label>
+      <select name="category" class="form-select">
+        <option value="">All</option>
+        {% for c in ['Garbage', 'Pothole', 'Streetlight', 'Water Leakage', 'Road Damage', 'Public Safety', 'Noise', 'Other'] %}
+        <option value="{{ c }}" {% if filters.category == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>Priority</label>
+      <select name="priority" class="form-select">
+        <option value="">All</option>
+        {% for p in ['Low', 'Medium', 'High'] %}
+        <option value="{{ p }}" {% if filters.priority == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>From</label>
+      <input type="date" name="start_date" class="form-input" value="{{ filters.start_date or '' }}">
+    </div>
+    <div class="filter-field">
+      <label>To</label>
+      <input type="date" name="end_date" class="form-input" value="{{ filters.end_date or '' }}">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-primary">Apply</button>
+      <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Reset</a>
+    </div>
+  </div>
+</form>
+
+<div class="complaint-list" id="complaintList">
+  {% for c in complaints %}
+  <a href="{{ url_for('view_complaint', complaint_id=c.id) }}" class="complaint-card" data-status="{{ c.status }}">
+    <div class="complaint-card-left">
+      {% if c.image_url %}
+        <img src="{{ c.image_url }}" alt="Complaint image" class="complaint-thumb">
+      {% else %}
+        <div class="complaint-thumb-placeholder">
+          <i class="bi bi-{{ {'Garbage':'trash','Pothole':'exclamation-diamond','Streetlight':'lightbulb','Water Leakage':'droplet','Road Damage':'cone','Public Safety':'shield-exclamation','Noise':'volume-up'}.get(c.category, 'flag') }}"></i>
+        </div>
+      {% endif %}
+    </div>
+    <div class="complaint-card-body">
+      <div class="complaint-card-meta">
+        <span class="complaint-id">{{ c.ref_id or c.id }}</span>
+        <span class="tag-cat">{{ c.category }}</span>
+        <span class="tag-pri {{ c.priority | lower | replace(' ', '-') }}">{{ c.priority }}</span>
+        <span class="complaint-date">{{ c.created_at[:10] }}</span>
+      </div>
+      <h3 class="complaint-card-title">{{ c.title }}</h3>
+      {% if c.summary %}
+        <p class="complaint-card-summary">{{ c.summary }}</p>
+      {% endif %}
+      <div class="complaint-card-footer">
+        <span class="status-badge status-{{ c.status | lower | replace(' ', '-') }}">
+          <span class="status-dot-sm"></span> {{ c.status }}
+        </span>
+        <span class="complaint-loc"><i class="bi bi-geo-alt"></i> {{ c.location }}</span>
+      </div>
+    </div>
+    <div class="complaint-card-arrow"><i class="bi bi-chevron-right"></i></div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+  <h3>No complaints yet</h3>
+  <p>See something that needs fixing in your city? Report it and track progress in real time.</p>
+  <a href="{{ url_for('new_complaint') }}" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> File your first complaint
+  </a>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filter = btn.dataset.filter;
+    document.querySelectorAll('.complaint-card').forEach(card => {
+      card.style.display = (filter === 'all' || card.dataset.status === filter) ? '' : 'none';
+    });
+  });
+});
+</script>
+{% endblock %}

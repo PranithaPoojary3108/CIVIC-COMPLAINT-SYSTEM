@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}{{ complaint.title }} — CivicPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <a href="{{ url_for('dashboard') if session.role != 'admin' else url_for('admin_dashboard') }}" class="btn btn-ghost btn-sm">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+  <div class="header-actions">
+    {% if session.role == 'admin' %}
+    <form method="POST" action="{{ url_for('update_status', complaint_id=complaint.id) }}" class="inline-form">
+      <select name="status" class="form-select-sm" onchange="this.form.submit()">
+        {% for s in ['Pending','In Progress','Resolved'] %}
+        <option {% if complaint.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <form method="POST" action="{{ url_for('assign_department', complaint_id=complaint.id) }}" class="inline-form">
+      <select name="department" class="form-select-sm" onchange="this.form.submit()">
+        {% for d in ['Roads','Water Works','Electricity Board','Sanitation','Street Lighting','Public Safety','Noise Control','General Services'] %}
+        <option {% if complaint.department == d %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% elif can_edit %}
+    <a href="{{ url_for('edit_complaint', complaint_id=complaint.id) }}" class="btn btn-ghost btn-sm">
+      <i class="bi bi-pencil"></i> Edit
+    </a>
+    <form method="POST" action="{{ url_for('withdraw_complaint', complaint_id=complaint.id) }}"
+          onsubmit="return confirm('Withdraw this complaint?')">
+      <button type="submit" class="btn btn-outline-danger btn-sm">
+        <i class="bi bi-x-circle"></i> Withdraw
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="detail-page">
+  <div class="detail-main">
+    <div class="detail-meta">
+      <span class="detail-ref">{{ complaint.ref_id or 'N/A' }}</span>
+      <span class="tag-cat">{{ complaint.category }}</span>
+      <span class="tag-pri {{ complaint.priority | lower }}">{{ complaint.priority }}</span>
+      <span class="status-badge status-{{ complaint.status | lower | replace(' ', '-') }}">
+        <span class="status-dot-sm"></span> {{ complaint.status }}
+      </span>
+      {% if complaint.sentiment %}
+      <span class="sentiment-tag sentiment-{{ complaint.sentiment | lower }}">
+        <i class="bi bi-emoji-{% if complaint.sentiment == 'Frustrated' %}angry{% elif complaint.sentiment == 'Urgent' %}dizzy{% else %}neutral{% endif %}"></i>
+        {{ complaint.sentiment }}
+      </span>
+      {% endif %}
+    </div>
+
+    <h1 class="detail-title">{{ complaint.title }}</h1>
+    <div class="detail-submeta">
+      <span><i class="bi bi-building"></i> <strong>Department:</strong> {{ complaint.department or 'General Services' }}</span>
+      {% if complaint.is_duplicate %}
+      <span class="duplicate-note"><i class="bi bi-copy"></i> Possible duplicate — review similar report.</span>
+      {% endif %}
+    </div>
+
+    {% if complaint.summary %}
+    <div class="ai-summary-box">
+      <div class="ai-summary-label"><i class="bi bi-cpu"></i> AI Summary</div>
+      <p>{{ complaint.summary }}</p>
+    </div>
+    {% endif %}
+
+    {% if complaint.image_url %}
+    <div class="detail-image">
+      <img src="{{ complaint.image_url }}" alt="Complaint photo" onclick="this.classList.toggle('zoomed')">
+      <p class="img-hint">Click to zoom</p>
+    </div>
+    {% endif %}
+
+    <div class="detail-section">
+      <h3 class="detail-section-title">Description</h3>
+      <p class="detail-description">{{ complaint.description }}</p>
+    </div>
+
+    <div class="detail-info-grid">
+      <div class="detail-info-item">
+        <i class="bi bi-geo-alt"></i>
+        <div><span class="info-label">Location</span><span class="info-val">{{ complaint.location }}</span></div>
+      </div>
+      <div class="detail-info-item">
+        <i class="bi bi-calendar3"></i>
+        <div><span class="info-label">Submitted</span><span class="info-val">{{ complaint.created_at[:10] }}</span></div>
+      </div>
+      {% if complaint.resolved_at %}
+      <div class="detail-info-item">
+        <i class="bi bi-check2-circle"></i>
+        <div><span class="info-label">Resolved</span><span class="info-val">{{ complaint.resolved_at[:10] }}</span></div>
+      </div>
+      {% endif %}
+      {% if complaint.users %}
+      <div class="detail-info-item">
+        <i class="bi bi-person"></i>
+        <div><span class="info-label">Reported by</span><span class="info-val">{{ complaint.users.name }}</span></div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Comments Section -->
+    <div class="comments-section">
+      <h3 class="detail-section-title"><i class="bi bi-chat-dots"></i> Remarks & Comments</h3>
+      {% if comments %}
+        <div class="comment-list">
+          {% for c in comments %}
+          <div class="comment-item {% if c.users and c.users.role == 'admin' %}admin-comment{% endif %}">
+            <div class="comment-avatar">{{ c.users.name[0].upper() if c.users else '?' }}</div>
+            <div class="comment-body">
+              <div class="comment-meta">
+                <strong>{{ c.users.name if c.users else 'Unknown' }}</strong>
+                {% if c.users and c.users.role == 'admin' %}<span class="admin-badge">Admin</span>{% endif %}
+                <span class="comment-time">{{ c.created_at[:16].replace('T',' ') }}</span>
+              </div>
+              <p>{{ c.content }}</p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted">No remarks yet.</p>
+      {% endif %}
+
+      {% if session.role == 'admin' or (complaint.user_id == session.user_id) %}
+      <form method="POST" action="{{ url_for('add_comment', complaint_id=complaint.id) }}" class="comment-form">
+        <textarea name="content" class="form-input" rows="3" placeholder="Add a remark or update..." maxlength="500" required></textarea>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-send"></i> Post Remark</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="detail-sidebar">
+    <div class="timeline-card">
+      <h3 class="timeline-title">Status Timeline</h3>
+      <div class="timeline">
+        <div class="timeline-item done">
+          <div class="timeline-dot"><i class="bi bi-check-lg"></i></div>
+          <div class="timeline-content"><strong>Submitted</strong><span>{{ complaint.created_at[:10] }}</span></div>
+        </div>
+        <div class="timeline-item {% if complaint.status in ['In Progress', 'Resolved'] %}done{% elif complaint.status == 'Pending' %}current{% endif %}">
+          <div class="timeline-dot"><i class="bi bi-{% if complaint.status in ['In Progress', 'Resolved'] %}check-lg{% else %}clock{% endif %}"></i></div>
+          <div class="timeline-content"><strong>Pending Review</strong><span>Awaiting admin</span></div>
+        </div>
+        <div class="timeline-item {% if complaint.status == 'In Progress' %}current{% elif complaint.status == 'Resolved' %}done{% endif %}">
+          <div class="timeline-dot"><i class="bi bi-{% if complaint.status == 'Resolved' %}check-lg{% elif complaint.status == 'In Progress' %}gear{% else %}circle{% endif %}"></i></div>
+          <div class="timeline-content"><strong>In Progress</strong><span>Work underway</span></div>
+        </div>
+        <div class="timeline-item {% if complaint.status == 'Resolved' %}done{% elif complaint.status == 'In Progress' %}current{% endif %}">
+          <div class="timeline-dot"><i class="bi bi-{% if complaint.status == 'Resolved' %}check-lg{% else %}circle{% endif %}"></i></div>
+          <div class="timeline-content"><strong>Resolved</strong><span>{% if complaint.resolved_at %}{{ complaint.resolved_at[:10] }}{% else %}Pending{% endif %}</span></div>
+        </div>
+        {% if complaint.status == 'Withdrawn' %}
+        <div class="timeline-item withdrawn">
+          <div class="timeline-dot"><i class="bi bi-x-lg"></i></div>
+          <div class="timeline-content"><strong>Withdrawn</strong><span>By citizen</span></div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if history %}
+    <div class="history-card">
+      <h3 class="timeline-title"><i class="bi bi-clock-history"></i> Audit Trail</h3>
+      <div class="history-list">
+        {% for h in history %}
+        <div class="history-item">
+          <div class="history-dot"></div>
+          <div class="history-body">
+            <strong>{{ h.action | replace('_', ' ') | title }}</strong>
+            {% if h.old_value and h.new_value %}
+            <span class="history-change">{{ h.old_value }} → {{ h.new_value }}</span>
+            {% elif h.new_value %}
+            <span class="history-change">{{ h.new_value }}</span>
+            {% endif %}
+            <span class="history-meta">{{ h.changed_by }} · {{ h.created_at[:10] }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if session.role == 'admin' %}
+    <div class="admin-actions-card">
+      <h3>Admin Actions</h3>
+      <form method="POST" action="{{ url_for('delete_complaint', complaint_id=complaint.id) }}"
+            onsubmit="return confirm('Delete this complaint permanently?')">
+        <button type="submit" class="btn btn-danger btn-full">
+          <i class="bi bi-trash"></i> Delete Complaint
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

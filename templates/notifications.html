@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Notifications — CivicPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Notifications</h1>
+    <p class="page-sub">Stay updated on your complaint status.</p>
+  </div>
+</div>
+
+{% if notifications %}
+<div class="notif-list">
+  {% for n in notifications %}
+  <div class="notif-item {% if not n.is_read %}unread{% endif %}">
+    <div class="notif-icon">
+      <i class="bi bi-bell{% if not n.is_read %}-fill{% endif %}"></i>
+    </div>
+    <div class="notif-body">
+      <strong>{{ n.title }}</strong>
+      <p>{{ n.message }}</p>
+      <span class="notif-time">{{ n.created_at[:16].replace('T',' ') }}</span>
+    </div>
+    {% if n.complaint_id %}
+    <a href="{{ url_for('view_complaint', complaint_id=n.complaint_id) }}" class="btn btn-ghost btn-sm">View</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon"><i class="bi bi-bell-slash"></i></div>
+  <h3>No notifications yet</h3>
+  <p>You'll be notified when your complaint status changes.</p>
+</div>
+{% endif %}
+{% endblock %}

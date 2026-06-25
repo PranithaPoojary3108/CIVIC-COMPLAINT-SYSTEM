@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}New Complaint — CivicPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">File a Complaint</h1>
+    <p class="page-sub">AI will automatically categorize and prioritize it.</p>
+  </div>
+</div>
+
+<div class="form-page">
+  <form method="POST" enctype="multipart/form-data" class="complaint-form" id="complaintForm">
+    {% if duplicate_warning %}
+    <div class="alert alert-warning">
+      <i class="bi bi-exclamation-triangle"></i> {{ duplicate_warning }}
+    </div>
+    {% endif %}
+
+    <div class="form-section">
+      <div class="form-group">
+        <label class="form-label">Complaint title <span class="required">*</span></label>
+        <input type="text" name="title" id="titleInput" class="form-input" 
+               placeholder="e.g. Overflowing garbage bin near bus stop" required maxlength="150">
+        <span class="form-hint">Be specific — it helps AI categorize accurately.</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description <span class="required">*</span></label>
+        <textarea name="description" id="descInput" class="form-input form-textarea" rows="5"
+                  placeholder="Describe the issue in detail — what you saw, how long it's been there, and any safety concerns." 
+                  required maxlength="1000"></textarea>
+        <span class="form-hint char-count" id="charCount">0 / 1000</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Location <span class="required">*</span></label>
+        <div class="input-wrap">
+          <i class="bi bi-geo-alt input-icon"></i>
+          <input type="text" name="location" class="form-input" 
+                 placeholder="e.g. 5th Cross, Indiranagar, Bengaluru" required>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <label class="form-label">Photo (optional)</label>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" name="image" id="imageInput" accept="image/*" class="upload-input">
+        <div class="upload-prompt" id="uploadPrompt">
+          <i class="bi bi-cloud-upload"></i>
+          <span>Drop a photo here or <strong>browse</strong></span>
+          <span class="upload-hint">JPG, PNG, GIF up to 5MB</span>
+        </div>
+        <div class="upload-preview" id="uploadPreview" style="display:none">
+          <img id="previewImg" src="" alt="Preview">
+          <button type="button" class="remove-img" id="removeImg">
+            <i class="bi bi-x-circle-fill"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ai-preview" id="aiPreview" style="display:none">
+      <div class="ai-preview-header">
+        <i class="bi bi-cpu"></i> AI Preview
+        <span class="ai-badge">Powered by Gemini</span>
+      </div>
+      <div class="ai-preview-body">
+        <div class="ai-field">
+          <span class="ai-field-label">Category</span>
+          <span class="tag-cat" id="previewCategory">—</span>
+        </div>
+        <div class="ai-field">
+          <span class="ai-field-label">Priority</span>
+          <span class="tag-pri" id="previewPriority">—</span>
+        </div>
+        <div class="ai-field ai-field-full">
+          <span class="ai-field-label">AI Summary</span>
+          <p class="ai-summary-text" id="previewSummary">—</p>
+        </div>
+      </div>
+      <p class="ai-note">This is a live preview. Final categorization happens on submit.</p>
+    </div>
+
+    <div class="form-actions">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Cancel</a>
+      <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+        <i class="bi bi-send"></i> Submit Complaint
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+// Character count
+const desc = document.getElementById('descInput');
+const count = document.getElementById('charCount');
+desc.addEventListener('input', () => { count.textContent = `${desc.value.length} / 1000`; });
+
+// Image preview
+const zone = document.getElementById('uploadZone');
+const input = document.getElementById('imageInput');
+const prompt = document.getElementById('uploadPrompt');
+const preview = document.getElementById('uploadPreview');
+const img = document.getElementById('previewImg');
+const removeBtn = document.getElementById('removeImg');
+
+function showPreview(file) {
+  const reader = new FileReader();
+  reader.onload = e => { img.src = e.target.result; preview.style.display = 'block'; prompt.style.display = 'none'; };
+  reader.readAsDataURL(file);
+}
+input.addEventListener('change', () => { if (input.files[0]) showPreview(input.files[0]); });
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) { input.files = e.dataTransfer.files; showPreview(file); }
+});
+removeBtn.addEventListener('click', () => {
+  input.value = ''; img.src = '';
+  preview.style.display = 'none'; prompt.style.display = 'flex';
+});
+
+// Live AI preview
+const titleInput = document.getElementById('titleInput');
+const aiPreview = document.getElementById('aiPreview');
+let debounceTimer;
+function fetchAIPreview() {
+  const title = titleInput.value.trim();
+  const description = desc.value.trim();
+  if (title.length < 5 || description.length < 10) { aiPreview.style.display = 'none'; return; }
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title, description})
+      });
+      const data = await res.json();
+      document.getElementById('previewCategory').textContent = data.category || '—';
+      const pri = document.getElementById('previewPriority');
+      pri.textContent = data.priority || '—';
+      pri.className = 'tag-pri ' + (data.priority || '').toLowerCase();
+      document.getElementById('previewSummary').textContent = data.summary || '—';
+      aiPreview.style.display = 'block';
+    } catch(e) {}
+  }, 800);
+}
+titleInput.addEventListener('input', fetchAIPreview);
+desc.addEventListener('input', fetchAIPreview);
+
+// Submit state
+document.getElementById('complaintForm').addEventListener('submit', () => {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Submitting...';
+});
+</script>
+{% endblock %}

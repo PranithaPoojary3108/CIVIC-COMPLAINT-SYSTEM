@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — CivicPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Admin Dashboard</h1>
+    <p class="page-sub">Manage all civic complaints citywide.</p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('admin_reports') }}" class="btn btn-ghost btn-sm"><i class="bi bi-bar-chart-line"></i> Analytics</a>
+    <a href="{{ url_for('export_csv') }}" class="btn btn-ghost btn-sm"><i class="bi bi-download"></i> Export CSV</a>
+  </div>
+</div>
+
+<div class="stat-row">
+  <div class="stat-card">
+    <div class="stat-val">{{ stats.total }}</div>
+    <div class="stat-lbl">Total Complaints</div>
+  </div>
+  <div class="stat-card pending">
+    <div class="stat-val">{{ stats.pending }}</div>
+    <div class="stat-lbl">Pending</div>
+  </div>
+  <div class="stat-card in-progress">
+    <div class="stat-val">{{ stats.in_progress }}</div>
+    <div class="stat-lbl">In Progress</div>
+  </div>
+  <div class="stat-card resolved">
+    <div class="stat-val">{{ stats.resolved }}</div>
+    <div class="stat-lbl">Resolved</div>
+  </div>
+  <div class="stat-card users">
+    <div class="stat-val">{{ stats.total_users }}</div>
+    <div class="stat-lbl">Total Users</div>
+  </div>
+</div>
+
+<div class="report-row">
+  <div class="report-card">
+    <p class="report-label">Today</p>
+    <h2>{{ stats.today }}</h2>
+  </div>
+  <div class="report-card">
+    <p class="report-label">This month</p>
+    <h2>{{ stats.this_month }}</h2>
+  </div>
+  <div class="report-card">
+    <p class="report-label">Resolution rate</p>
+    <h2>{{ stats.resolution_rate }}%</h2>
+  </div>
+  <div class="report-card">
+    <p class="report-label">Avg resolution</p>
+    <h2>{{ stats.average_resolution_days }} days</h2>
+  </div>
+</div>
+
+<div class="admin-layout">
+  <div class="admin-main">
+    <div class="section-header">
+      <h2>All Complaints</h2>
+      <form method="get" class="filter-form">
+        <div class="filter-grid admin-filters">
+          <div class="filter-field">
+            <label>Status</label>
+            <select name="status" class="form-select">
+              <option value="">All</option>
+              {% for s in ['Pending','In Progress','Resolved','Withdrawn'] %}
+              <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Search</label>
+            <input type="text" name="q" class="form-input" placeholder="ID, title, location…" value="{{ filters.q or '' }}">
+          </div>
+          <div class="filter-field">
+            <label>Category</label>
+            <select name="category" class="form-select">
+              <option value="">All</option>
+              {% for c in categories %}
+              <option value="{{ c }}" {% if filters.category == c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Priority</label>
+            <select name="priority" class="form-select">
+              <option value="">All</option>
+              {% for p in ['Low','Medium','High'] %}
+              <option value="{{ p }}" {% if filters.priority == p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Department</label>
+            <select name="department" class="form-select">
+              <option value="">All</option>
+              {% for d in departments %}
+              <option value="{{ d }}" {% if filters.department == d %}selected{% endif %}>{{ d }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>From</label>
+            <input type="date" name="start_date" class="form-input" value="{{ filters.start_date or '' }}">
+          </div>
+          <div class="filter-field">
+            <label>To</label>
+            <input type="date" name="end_date" class="form-input" value="{{ filters.end_date or '' }}">
+          </div>
+          <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Apply</button>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-ghost">Reset</a>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    {% if complaints %}
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Complaint</th>
+            <th>Category</th>
+            <th>Priority</th>
+            <th>Department</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in complaints %}
+          <tr>
+            <td class="ref-id-cell">{{ c.ref_id or c.id[:8] }}</td>
+            <td>
+              <a href="{{ url_for('view_complaint', complaint_id=c.id) }}" class="table-title">{{ c.title }}</a>
+              {% if c.users %}<div class="table-sub">by {{ c.users.name }}</div>{% endif %}
+              {% if c.is_duplicate %}<span class="dup-flag">Duplicate</span>{% endif %}
+            </td>
+            <td><span class="tag-cat">{{ c.category }}</span></td>
+            <td><span class="tag-pri {{ c.priority | lower }}">{{ c.priority }}</span></td>
+            <td class="table-dept">{{ c.department or '—' }}</td>
+            <td class="table-date">{{ c.created_at[:10] }}</td>
+            <td>
+              <span class="status-badge status-{{ c.status | lower | replace(' ', '-') }}">
+                <span class="status-dot-sm"></span> {{ c.status }}
+              </span>
+            </td>
+            <td>
+              <form method="POST" action="{{ url_for('update_status', complaint_id=c.id) }}" class="inline-form">
+                <select name="status" class="form-select-xs" onchange="this.form.submit()">
+                  {% for s in ['Pending','In Progress','Resolved'] %}
+                  <option {% if c.status == s %}selected{% endif %}>{{ s }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+      <h3>No complaints found</h3>
+      <p>Try adjusting filters or clear them to see all.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="admin-sidebar">
+    <div class="chart-card">
+      <h3>Priority Breakdown</h3>
+      <div class="priority-bars">
+        {% set total = stats.total or 1 %}
+        <div class="pri-bar-wrap">
+          <div class="pri-bar-label"><span class="tag-pri high">High</span><span>{{ stats.high }}</span></div>
+          <div class="pri-bar"><div class="pri-fill high" style="width:{{ (stats.high / total * 100) | round }}%"></div></div>
+        </div>
+        <div class="pri-bar-wrap">
+          <div class="pri-bar-label"><span class="tag-pri medium">Medium</span><span>{{ stats.medium }}</span></div>
+          <div class="pri-bar"><div class="pri-fill medium" style="width:{{ (stats.medium / total * 100) | round }}%"></div></div>
+        </div>
+        <div class="pri-bar-wrap">
+          <div class="pri-bar-label"><span class="tag-pri low">Low</span><span>{{ stats.low }}</span></div>
+          <div class="pri-bar"><div class="pri-fill low" style="width:{{ (stats.low / total * 100) | round }}%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    {% if stats.by_category %}
+    <div class="chart-card">
+      <h3>By Category</h3>
+      <div class="category-list">
+        {% for cat, count in stats.by_category.items() %}
+        <div class="cat-row">
+          <span class="cat-name">{{ cat }}</span>
+          <div class="cat-bar-wrap"><div class="cat-bar" style="width:{{ (count / stats.total * 100) | round }}%"></div></div>
+          <span class="cat-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if stats.monthly_trend %}
+    <div class="chart-card">
+      <h3>Monthly Trend</h3>
+      <canvas id="monthlyChart" height="150"></canvas>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+{% if stats.monthly_trend %}
+const monthlyData = {{ stats.monthly_trend | tojson }};
+const ctx = document.getElementById('monthlyChart');
+if (ctx) {
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(monthlyData),
+      datasets: [{
+        label: 'Complaints',
+        data: Object.values(monthlyData),
+        backgroundColor: 'rgba(245,158,11,0.7)',
+        borderColor: '#f59e0b',
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+}
+{% endif %}
+</script>
+{% endblock %}

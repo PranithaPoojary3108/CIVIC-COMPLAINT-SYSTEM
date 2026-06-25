@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CivicPulse{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+{% if session.user_id %}
+<nav class="navbar">
+  <a href="{{ url_for('dashboard') if session.role != 'admin' else url_for('admin_dashboard') }}" class="nav-brand">
+    <span class="brand-icon">⬡</span>
+    <span>CivicPulse</span>
+  </a>
+  <div class="nav-links">
+    {% if session.role == 'admin' %}
+      <a href="{{ url_for('admin_dashboard') }}" class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+        <i class="bi bi-speedometer2"></i> Dashboard
+      </a>
+      <a href="{{ url_for('admin_reports') }}" class="nav-link {% if request.endpoint == 'admin_reports' %}active{% endif %}">
+        <i class="bi bi-bar-chart-line"></i> Analytics
+      </a>
+      <a href="{{ url_for('admin_users') }}" class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}">
+        <i class="bi bi-people"></i> Users
+      </a>
+    {% else %}
+      <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+        <i class="bi bi-grid-1x2"></i> My Complaints
+      </a>
+      <a href="{{ url_for('new_complaint') }}" class="nav-link {% if request.endpoint == 'new_complaint' %}active{% endif %}">
+        <i class="bi bi-plus-circle"></i> New
+      </a>
+    {% endif %}
+    <a href="{{ url_for('notifications') }}" class="nav-link notif-link {% if request.endpoint == 'notifications' %}active{% endif %}">
+      <i class="bi bi-bell"></i>
+      {% if unread_notifications > 0 %}
+        <span class="notif-badge">{{ unread_notifications }}</span>
+      {% endif %}
+    </a>
+    <div class="nav-user">
+      <a href="{{ url_for('profile') }}" class="user-avatar-link">
+        <span class="user-avatar">{{ session.user_name[0].upper() }}</span>
+      </a>
+      <span class="user-name">{{ session.user_name }}</span>
+      <a href="{{ url_for('logout') }}" class="btn-logout" title="Logout"><i class="bi bi-box-arrow-right"></i></a>
+    </div>
+  </div>
+</nav>
+{% endif %}
+
+<main class="main-content">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">
+            <i class="bi bi-{% if category == 'success' %}check-circle{% elif category == 'danger' %}exclamation-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+            {{ message }}
+            <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<!-- AI Chatbot Widget -->
+{% if session.user_id %}
+<div class="chatbot-widget" id="chatbotWidget">
+  <button class="chatbot-toggle" id="chatbotToggle" title="AI Assistant">
+    <i class="bi bi-robot" id="chatbotIcon"></i>
+  </button>
+  <div class="chatbot-panel" id="chatbotPanel" style="display:none">
+    <div class="chatbot-header">
+      <span><i class="bi bi-robot"></i> CivicPulse Assistant</span>
+      <button onclick="document.getElementById('chatbotPanel').style.display='none'" class="chatbot-close">×</button>
+    </div>
+    <div class="chatbot-messages" id="chatbotMessages">
+      <div class="chat-msg bot">Hi! I'm your civic complaint assistant. How can I help you today?</div>
+    </div>
+    <div class="chatbot-input-row">
+      <input type="text" id="chatbotInput" class="chatbot-input" placeholder="Ask about filing complaints..." maxlength="200">
+      <button onclick="sendChatMessage()" class="chatbot-send"><i class="bi bi-send"></i></button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+<script>
+// Chatbot
+const chatToggle = document.getElementById('chatbotToggle');
+const chatPanel = document.getElementById('chatbotPanel');
+if (chatToggle) {
+  chatToggle.addEventListener('click', () => {
+    const shown = chatPanel.style.display !== 'none';
+    chatPanel.style.display = shown ? 'none' : 'flex';
+  });
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chatbotInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  appendChatMsg(msg, 'user');
+  input.value = '';
+  appendChatMsg('...', 'bot typing');
+  try {
+    const res = await fetch('/api/chatbot', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg})
+    });
+    const data = await res.json();
+    document.querySelector('.chat-msg.typing')?.remove();
+    appendChatMsg(data.reply || 'Sorry, I could not process that.', 'bot');
+  } catch(e) {
+    document.querySelector('.chat-msg.typing')?.remove();
+    appendChatMsg('Connection error. Please try again.', 'bot');
+  }
+}
+
+function appendChatMsg(text, type) {
+  const msgs = document.getElementById('chatbotMessages');
+  if (!msgs) return;
+  const div = document.createElement('div');
+  div.className = `chat-msg ${type}`;
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+document.getElementById('chatbotInput')?.addEventListener('keypress', e => {
+  if (e.key === 'Enter') sendChatMessage();
+});
+
+// Auto-dismiss flashes
+setTimeout(() => {
+  document.querySelectorAll('.flash').forEach(f => f.style.opacity = '0');
+}, 5000);
+</script>
+</body>
+</html>

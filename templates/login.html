@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Sign In — CivicPulse{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <a href="{{ url_for('index') }}" class="auth-brand">
+      <span class="brand-icon">⬡</span> CivicPulse
+    </a>
+    <h1 class="auth-title">Welcome back</h1>
+    <p class="auth-sub">Sign in to track and manage your complaints.</p>
+    <form method="POST" class="auth-form">
+      <div class="form-group">
+        <label class="form-label">Email address</label>
+        <div class="input-wrap">
+          <i class="bi bi-envelope input-icon"></i>
+          <input type="email" name="email" class="form-input" placeholder="you@example.com" required autofocus>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="input-wrap">
+          <i class="bi bi-lock input-icon"></i>
+          <input type="password" name="password" class="form-input" placeholder="Your password" required>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full">Sign in <i class="bi bi-arrow-right"></i></button>
+    </form>
+    <p class="auth-switch">Don't have an account? <a href="{{ url_for('register') }}">Create one</a></p>
+    <div class="auth-demo">
+      <p class="demo-label">Demo credentials</p>
+      <code>admin@civic.gov / admin123</code>
+    </div>
+  </div>
+  <div class="auth-visual">
+    <div class="auth-stat"><span class="stat-num">2.4k</span><span class="stat-label">Complaints resolved</span></div>
+    <div class="auth-stat"><span class="stat-num">98%</span><span class="stat-label">AI accuracy</span></div>
+    <div class="auth-stat"><span class="stat-num">3.2 days</span><span class="stat-label">Avg resolution time</span></div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}CivicPulse — Report. Track. Resolve.{% endblock %}
+{% block content %}
+<div class="hero">
+  <div class="hero-bg">
+    <div class="hex-grid">
+      {% for i in range(20) %}<div class="hex"></div>{% endfor %}
+    </div>
+  </div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">Smart Civic Infrastructure</div>
+    <h1 class="hero-title">Your city,<br><em>heard clearly.</em></h1>
+    <p class="hero-desc">
+      Report civic issues — potholes, garbage, broken streetlights — and track them in real time.
+      AI categorizes and prioritizes every complaint the moment you submit it.
+    </p>
+    <div class="hero-cta">
+      <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
+        Start reporting <i class="bi bi-arrow-right"></i>
+      </a>
+      <a href="{{ url_for('login') }}" class="btn btn-ghost btn-lg">Sign in</a>
+    </div>
+    <div class="hero-features">
+      <div class="feature-pill"><i class="bi bi-cpu"></i> AI-powered categorization</div>
+      <div class="feature-pill"><i class="bi bi-geo-alt"></i> Location tracking</div>
+      <div class="feature-pill"><i class="bi bi-bell"></i> Status updates</div>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="mock-card">
+      <div class="mock-header">
+        <span class="mock-dot red"></span><span class="mock-dot yellow"></span><span class="mock-dot green"></span>
+      </div>
+      <div class="mock-complaint">
+        <div class="mock-badge ai">AI Analyzed</div>
+        <div class="mock-title">Water pipe burst on MG Road</div>
+        <div class="mock-tags">
+          <span class="tag-cat">Water Leakage</span>
+          <span class="tag-pri high">High Priority</span>
+        </div>
+        <div class="mock-summary">"Burst main pipe causing flooding near bus stand requiring immediate repair."</div>
+        <div class="mock-status">
+          <span class="status-dot in-progress"></span> In Progress
+        </div>
+      </div>
+      <div class="mock-complaint" style="opacity:0.6;transform:scale(0.96);margin-top:8px">
+        <div class="mock-title" style="font-size:13px">Pothole on 5th Cross, Indiranagar</div>
+        <div class="mock-tags">
+          <span class="tag-cat">Pothole</span>
+          <span class="tag-pri medium">Medium</span>
+        </div>
+        <div class="mock-status"><span class="status-dot pending"></span> Pending</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="how-it-works">
+  <h2 class="section-title">Three steps. Real results.</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-icon"><i class="bi bi-pencil-square"></i></div>
+      <h3>Submit</h3>
+      <p>Describe the issue, attach a photo, and drop a location. Takes under a minute.</p>
+    </div>
+    <div class="step-arrow"><i class="bi bi-arrow-right"></i></div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-icon"><i class="bi bi-cpu"></i></div>
+      <h3>AI Analyzes</h3>
+      <p>Gemini AI instantly categorizes, prioritizes, and summarizes your complaint.</p>
+    </div>
+    <div class="step-arrow"><i class="bi bi-arrow-right"></i></div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-icon"><i class="bi bi-check2-circle"></i></div>
+      <h3>Track & Resolve</h3>
+      <p>Watch your complaint move from Pending → In Progress → Resolved in real time.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Create Account — CivicPulse{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <a href="{{ url_for('index') }}" class="auth-brand">
+      <span class="brand-icon">⬡</span> CivicPulse
+    </a>
+    <h1 class="auth-title">Create your account</h1>
+    <p class="auth-sub">Join thousands making their city better.</p>
+    <form method="POST" class="auth-form">
+      <div class="form-group">
+        <label class="form-label">Full name</label>
+        <div class="input-wrap">
+          <i class="bi bi-person input-icon"></i>
+          <input type="text" name="name" class="form-input" placeholder="Arjun Sharma" required autofocus>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email address</label>
+        <div class="input-wrap">
+          <i class="bi bi-envelope input-icon"></i>
+          <input type="email" name="email" class="form-input" placeholder="you@example.com" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="input-wrap">
+          <i class="bi bi-lock input-icon"></i>
+          <input type="password" name="password" id="password" class="form-input" placeholder="Min. 6 characters" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm password</label>
+        <div class="input-wrap">
+          <i class="bi bi-shield-check input-icon"></i>
+          <input type="password" name="confirm_password" id="confirm" class="form-input" placeholder="Repeat password" required>
+        </div>
+        <span class="pw-match-hint" id="pw-hint"></span>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full">Create account <i class="bi bi-arrow-right"></i></button>
+    </form>
+    <p class="auth-switch">Already have an account? <a href="{{ url_for('login') }}">Sign in</a></p>
+  </div>
+  <div class="auth-visual">
+    <div class="auth-stat"><span class="stat-num">2.4k</span><span class="stat-label">Complaints resolved</span></div>
+    <div class="auth-stat"><span class="stat-num">98%</span><span class="stat-label">AI accuracy</span></div>
+    <div class="auth-stat"><span class="stat-num">3.2 days</span><span class="stat-label">Avg resolution time</span></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const pw = document.getElementById('password');
+const confirm = document.getElementById('confirm');
+const hint = document.getElementById('pw-hint');
+confirm.addEventListener('input', () => {
+  if (!confirm.value) { hint.textContent = ''; return; }
+  if (pw.value === confirm.value) {
+    hint.textContent = '✓ Passwords match'; hint.className = 'pw-match-hint match';
+  } else {
+    hint.textContent = '✗ Passwords do not match'; hint.className = 'pw-match-hint no-match';
+  }
+});
+</script>
+{% endblock %}
