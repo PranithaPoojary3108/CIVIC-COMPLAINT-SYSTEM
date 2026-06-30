@@ -16,6 +16,9 @@ from werkzeug.utils import secure_filename
 import hashlib
 
 app = Flask(__name__)
+@app.route("/")
+def home():
+    return render_template("index.html")
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
 app.config['WTF_CSRF_ENABLED'] = True
