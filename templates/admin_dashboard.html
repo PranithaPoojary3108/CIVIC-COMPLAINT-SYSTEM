@@ -139,6 +139,11 @@
               <a href="{{ url_for('view_complaint', complaint_id=c.id) }}" class="table-title">{{ c.title }}</a>
               {% if c.users %}<div class="table-sub">by {{ c.users.name }}</div>{% endif %}
               {% if c.is_duplicate %}<span class="dup-flag">Duplicate</span>{% endif %}
+              {% if c.image_url %}
+              <div class="complaint-preview">
+                <img src="{{ c.image_url }}" alt="Complaint image" class="complaint-thumb">
+              </div>
+              {% endif %}
             </td>
             <td><span class="tag-cat">{{ c.category }}</span></td>
             <td><span class="tag-pri {{ c.priority | lower }}">{{ c.priority }}</span></td>

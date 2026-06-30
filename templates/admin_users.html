@@ -41,7 +41,7 @@
             <span class="status-badge status-withdrawn"><span class="status-dot-sm"></span> Disabled</span>
           {% endif %}
         </td>
-        <td>{{ u.created_at[:10] if u.created_at else '—' }}</td>
+        <td>{{ (u.created_at or '')[:10] if u.created_at else '—' }}</td>
         <td>
           {% if u.id != session.user_id %}
           <div class="action-btns">

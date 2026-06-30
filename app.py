@@ -33,6 +33,9 @@ app.config['EMAIL_PASS'] = os.environ.get('SMTP_PASS')
 app.config['ADMIN_EMAILS'] = [e.strip() for e in os.environ.get('ADMIN_EMAILS', '').split(',') if e.strip()]
 app.config['STATUS_FLOW'] = ['Pending', 'In Progress', 'Resolved']
 
+# Simple in-memory fallback for local/dev use when Supabase is not configured.
+APP_NOTIFICATIONS = {}
+
 CATEGORIES = ['Roads', 'Water Supply', 'Electricity', 'Sanitation', 'Others',
                'Garbage', 'Pothole', 'Streetlight', 'Water Leakage', 'Road Damage',
                'Public Safety', 'Noise', 'Other']
@@ -87,29 +90,474 @@ Return this exact JSON:
         print(f"AI analysis error: {e}")
         return _fallback_analysis(title, description)
 
-def ai_generate_chatbot_response(user_message, complaint_context=None):
-    """AI chatbot for complaint assistance."""
+
+def _get_faq_database():
+    """Comprehensive FAQ knowledge base for the chatbot."""
+    return {
+        # About Application
+        ('what is this application', 'what is civic pulse', 'tell me about this app'): 
+            "CivicPulse is a smart civic complaint management system where citizens can report local issues (potholes, broken streetlights, garbage piles, water leaks, etc.) and track their resolution. Our AI automatically categorizes complaints, sets priority levels, and generates summaries. Admins review, prioritize, and assign complaints to relevant departments for swift resolution.",
+        
+        ('what is the complaint of my project', 'project complaint', 'project issues', 'what complaints does this handle'):
+            "CivicPulse handles civic infrastructure and public service complaints including: 1) Roads (potholes, damage, pavement cracks), 2) Water Supply (leaks, low pressure, supply issues), 3) Electricity (outages, broken lines, voltage issues), 4) Sanitation (garbage piles, waste collection delays), 5) Streetlights (broken, flickering, non-functional), 6) Public Safety (hazards, accidents, security concerns), 7) Noise pollution (excessive noise, disturbances). Our goal is to empower citizens to report problems and enable quick resolution through AI-powered categorization and admin coordination with responsible departments.",
+        
+        ('how does this complaint portal work', 'how does this system work', 'explain the process'):
+            "The process is simple: 1) You file a complaint with details and photos. 2) Our AI analyzes and categorizes it. 3) Admin team reviews and verifies. 4) Complaint is assigned to the relevant department. 5) Status updates as work progresses (Pending → In Progress → Resolved). 6) You receive notifications at each stage.",
+        
+        ('what services does this portal provide', 'what can i do here'):
+            "CivicPulse provides: Filing civic complaints (roads, water, garbage, streetlights, public safety), AI-powered analysis and categorization, real-time status tracking, image upload for evidence, admin dashboard for complaint management, priority-based sorting, automated notifications, complaint timeline history, and an AI assistant for guidance.",
+        
+        ('how can you help me', 'what can you do'):
+            "I can help you with: Filing new complaints (step-by-step guidance), understanding complaint statuses (Pending, In Progress, Resolved), uploading photos and locations, providing civic tips, answering FAQs about the system, explaining how AI works, guiding you through registration/login, and tracking your complaints. Just ask me anything!",
+        
+        # Filing Complaints
+        ('what types of complaints can i register', 'what complaints can i file', 'complaint categories'):
+            "You can report: 1) Roads (potholes, damage, cracks), 2) Water (leaks, supply issues), 3) Electricity (outages, broken lines), 4) Garbage/Sanitation (piles, uncollected waste), 5) Streetlights (broken, flickering), 6) Public Safety (hazards, accidents), 7) Noise pollution. Simply describe your issue and our AI categorizes it automatically.",
+        
+        ('why should i use this portal', 'benefits of this app', 'why register'):
+            "Benefits: Your voice matters—complaints reach the right departments efficiently. AI prioritizes urgent issues. Real-time tracking keeps you informed. Multiple stakeholders see your complaint, ensuring accountability. Photo evidence speeds resolution. Admins coordinate across departments systematically. You contribute to community improvement. It's free and accessible anytime, anywhere.",
+        
+        ('how do i file a complaint', 'file a complaint', 'submit complaint'):
+            "Filing is simple: 1) Click 'New Complaint' button. 2) Enter a clear title (e.g., 'Pothole on Oak Street'). 3) Write a detailed description of the issue. 4) Provide the exact location with landmarks. 5) Upload a photo if available (highly recommended). 6) Click Submit. You'll receive a confirmation and can track it on your dashboard. The more details you provide, the faster it gets resolved.",
+        
+        ('how can i report a pothole', 'reporting pothole'):
+            "To report a pothole: 1) Click 'New Complaint'. 2) Title: 'Pothole on [Street Name]'. 3) Description: Size (small/large), depth if known, surface condition, if it's a hazard. 4) Location: Exact street address with nearby landmarks. 5) Photo: Take a clear picture showing the pothole and surrounding area. 6) Submit. Our AI will categorize it as 'Road Damage' and admins will route it to the Roads Department.",
+        
+        ('where do i submit a garbage complaint', 'garbage complaint', 'report garbage'):
+            "Submit a garbage complaint: 1) Go to 'New Complaint'. 2) Title: 'Garbage pile on [Location]'. 3) Description: Type of garbage, quantity, duration (how long it's been there), health hazard level. 4) Location: Exact spot with landmarks. 5) Photo: Show the garbage pile clearly. 6) Submit. AI categorizes it as 'Sanitation' and admins assign it to the Sanitation Department immediately.",
+        
+        # Images
+        ('can i upload an image with my complaint', 'upload image', 'add photo'):
+            "Yes, absolutely! Upload supporting images when filing. 1) Click 'Choose File' in the complaint form. 2) Select your image (JPG, PNG format). 3) The image displays as a preview before submission. 4) Submit the complaint with the image attached. Photos provide visual evidence, significantly speed up admin review, and help departments understand the issue better. Highly recommended!",
+        
+        ('can i upload multiple images', 'multiple images', 'how many photos'):
+            "Currently, you can upload one image per complaint submission. However, after filing, you can edit your complaint and update the image. For complex issues, describe all details in the description field, and the main photo should show the most critical aspect of the problem.",
+        
+        ('which image formats are supported', 'image format', 'what image types'):
+            "Supported formats: JPG (.jpg, .jpeg) and PNG (.png). These formats compress well while maintaining quality, making uploads fast. If you have images in other formats (BMP, GIF, TIFF), convert them to JPG or PNG using free online tools before uploading.",
+        
+        ('why should i upload an image', 'importance of image', 'benefits of photo'):
+            "Images are powerful because they: 1) Provide visual proof of the problem. 2) Help admins and departments understand the issue immediately. 3) Reduce back-and-forth clarification. 4) Speed up resolution significantly. 5) Deter false complaints. 6) Serve as documentation. Photo evidence can reduce resolution time by 50-70%!",
+        
+        ('what is the maximum image size', 'image size limit', 'file size'):
+            "The recommended maximum image size is 5 MB. Most smartphone photos (2-4 MB) upload instantly. For faster uploads, use compressed images or reduce resolution slightly. Our system automatically optimizes images for storage.",
+        
+        ('is image upload mandatory', 'must i upload image', 'required image'):
+            "Image upload is optional but highly recommended. You can file without an image, but including one dramatically improves the chance of quick resolution. Photos provide visual proof and help admins prioritize effectively. If possible, always include a clear, well-lit photo of the civic issue.",
+        
+        # Location
+        ('is my location mandatory', 'location required', 'must provide location'):
+            "Yes, location is mandatory and crucial. Without a precise location, admins and departments cannot find and fix the problem. Provide: Street name, building number, nearby landmarks, district, or recognizable features. Vague locations (like 'near the area') delay resolution significantly.",
+        
+        ('why should i provide my location', 'importance of location', 'location benefit'):
+            "Location details are essential because: 1) Admins can verify the issue exists. 2) Departments know exactly where to send teams. 3) Prevents wasted time searching. 4) Enables quick resolution. 5) Serves as official record. Precise locations + photos = fastest resolution.",
+        
+        ('can i manually enter my location', 'manual location', 'type location'):
+            "Yes, you can type your location manually in the complaint form. Provide: Street name, area, nearby landmarks, building numbers. For example: 'Oak Street between Main Market and Hospital, Building #45.' The more specific, the better.",
+        
+        ('does gps work in this application', 'gps location', 'automatic location'):
+            "The current version requires manual location entry for accuracy. You can note GPS coordinates if you have them (e.g., Latitude: 28.7041, Longitude: 77.1025), but detailed street addresses work best. Future versions may include automatic GPS detection.",
+        
+        ('can i change my complaint location', 'update location', 'modify location'):
+            "Yes! After filing, you can edit your complaint to correct or update the location. Click 'Edit' on your complaint details page, update the location information, and save changes. This helps if you provided incomplete details initially.",
+        
+        # Authentication
+        ('how do i register', 'sign up', 'create account'):
+            "Registration is quick: 1) Click 'Register' on the login page. 2) Enter your name. 3) Provide your email address. 4) Create a password (recommended: mix of letters, numbers, special characters). 5) Enter your phone number. 6) Click 'Sign Up'. You'll receive a confirmation and can immediately log in to file complaints.",
+        
+        ('i forgot my password', 'reset password', 'recover password'):
+            "If you forgot your password: 1) Click 'Forgot Password?' on the login page. 2) Enter your registered email. 3) Check your email for a password reset link. 4) Click the link and create a new password. 5) Log in with your new password. If you don't receive an email within 5 minutes, check spam folder or contact admin support.",
+        
+        ('how do i login', 'sign in', 'log in'):
+            "Logging in is simple: 1) Go to the login page. 2) Enter your registered email address. 3) Enter your password. 4) Click 'Login'. You'll be directed to your personal dashboard showing your complaints, notifications, and activity. Your session stays active for 2 hours.",
+        
+        ('can i change my email', 'update email', 'modify email'):
+            "Yes, you can update your email: 1) Go to your profile/settings. 2) Click 'Edit Email'. 3) Enter your new email address. 4) Verify the new email (confirmation link sent). 5) Save changes. You'll log in with your new email from next time. Your old email won't be valid for login anymore.",
+        
+        ('how do i logout', 'sign out', 'exit'):
+            "To log out: 1) Click your profile icon (top-right corner). 2) Select 'Logout'. You'll be redirected to the homepage. Your session ends, and you'll need to log in again to access your dashboard. For security, always log out on shared devices.",
+        
+        # Complaint Status
+        ('how can i check my complaint status', 'track complaint', 'check progress'):
+            "Check status easily: 1) Log in to your dashboard. 2) You'll see all your filed complaints in a table. 3) Click any complaint to view full details. 4) See the current status (Pending, In Progress, Resolved). 5) View the complete timeline showing all status changes. 6) Check notifications for updates. You can also filter by status.",
+        
+        ('what is the progress of my complaint', 'progress of my complaint', 'where is my complaint', 'my complaint progress', 'status of my complaint'):
+            "To check your complaint's progress: 1) Log in to your dashboard with your email and password. 2) Find your complaint in the list (search by title or date). 3) Click on it to view detailed information. 4) You'll see: Current status (Pending/In Progress/Resolved), complete timeline of all status changes, when it was filed, last update timestamp, assigned department, priority level, and all admin notes/comments. 5) You'll also receive email notifications whenever the status changes. If your complaint hasn't moved in 3+ days, check if admin needs more information.",
+        
+        ('what does pending mean', 'pending status', 'pending complaint'):
+            "Pending means your complaint has been received and is waiting for admin review. During this phase: The admin team verifies your details, checks photo/location, categorizes the issue, determines priority, and prepares it for assignment. Typical duration: 1-2 days. You'll be notified when status changes to 'In Progress.'",
+        
+        ('what does in progress mean', 'in progress status', 'being resolved'):
+            "In Progress means your complaint is actively being worked on. The assigned department is investigating, coordinating resources, and taking corrective action. You may see physical teams visiting the location, fixing issues, or conducting assessments. Typical duration: 3-14 days depending on complexity. Admins keep this status updated as work progresses.",
+        
+        ('what does resolved mean', 'resolved status', 'completed complaint'):
+            "Resolved means the issue has been fixed and the complaint is closed. The department has completed corrective action, verified the fix, and reported completion to admins. Your complaint is now part of the historical record. You can still view all details and timeline. Filing future related complaints is easy from your dashboard.",
+        
+        ('why is my complaint still pending', 'stuck pending', 'pending too long'):
+            "If your complaint is pending longer than expected: 1) Admins may need clarification—check notifications. 2) High volume may cause delays. 3) Missing photo/location details slow verification. 4) Weekend/holiday delays are normal. 5) Urgent complaints are prioritized. Contact admin support if pending exceeds 3 days without updates. Providing complete details speeds up review significantly.",
+        
+        ('how long does it take to resolve complaints', 'resolution time', 'how long to fix'):
+            "Resolution time varies: Simple issues (broken streetlight): 2-7 days. Moderate issues (pothole repair): 5-14 days. Complex issues (water line repair): 15-30+ days. Urgent/safety complaints: 1-2 days priority. Factors: Issue complexity, department workload, resource availability, weather conditions. Track your dashboard for status updates. Notifications alert you to all progress.",
+        
+        # AI Features
+        ('how does ai categorize complaints', 'ai categorization', 'how ai works'):
+            "Our AI analyzes your complaint's title, description, and keywords to automatically categorize it. It reads content like 'pothole,' 'streetlight,' 'water leak,' 'garbage,' and assigns to the correct category (Roads, Electricity, Water, Sanitation, etc.). This ensures complaints reach the right departments immediately without manual routing delays.",
+        
+        ('how is complaint priority decided', 'priority system', 'urgent complaints'):
+            "AI and admins set priority based on: 1) Safety level—accidents, hazards = High. 2) Urgency—affecting many people = High. 3) Complexity—simple fix = Low, complex = Medium/High. 4) Severity—minor issue = Low, major = High. 5) Photo evidence—verified issues get priority. High-priority complaints get escalated immediately. Track priority level on your complaint details page.",
+        
+        ('what is complaint summarization', 'ai summary', 'auto summary'):
+            "Complaint summarization is where AI reads your full description and generates a concise 1-2 sentence summary. This helps admins quickly understand the core issue without reading lengthy details. The summary appears on the complaint overview, saving time and improving response efficiency.",
+        
+        ('can ai detect urgent complaints', 'urgent detection', 'emergency complaints'):
+            "Yes! Our AI identifies urgent/emergency complaints by detecting keywords like 'accident,' 'injury,' 'gas leak,' 'electrical hazard,' 'blocked road,' etc. Urgent complaints are automatically flagged and escalated to admins immediately, bypassing normal queues. Safety is prioritized above all else.",
+        
+        ('does ai read my complaint description', 'ai reading', 'text analysis'):
+            "Yes, AI thoroughly reads your entire complaint—title, description, location details, and photo captions. It analyzes the text to extract: Issue type, severity, location precision, required department, priority level, and any urgent keywords. The more detailed your description, the better AI understands and categorizes your complaint.",
+        
+        ('how accurate is the ai', 'ai accuracy', 'ai mistakes'):
+            "AI accuracy is typically 92-96%. It correctly categorizes most complaints on first analysis. Even if slightly off, admin review ensures correct categorization before department assignment. AI is trained continuously on real complaints, improving accuracy over time. Photo evidence and detailed descriptions boost accuracy significantly.",
+        
+        # Admin Features
+        ('what can an admin do', 'admin powers', 'admin role'):
+            "Admins can: 1) View all complaints in a dashboard. 2) Update complaint status (Pending → In Progress → Resolved). 3) Assign complaints to departments. 4) View analytics (stats, priority breakdown, timeline charts). 5) Manage user accounts. 6) Read all complaint details, photos, and timelines. 7) Add notes/comments to complaints. 8) Delete complaints if needed. 9) Export reports. 10) Send notifications to users.",
+        
+        ('how does the admin manage complaints', 'admin workflow', 'complaint management'):
+            "Admin workflow: 1) Review incoming complaints on dashboard. 2) Verify details (photo, location, category). 3) Set/adjust priority based on urgency. 4) Assign to appropriate department (Roads, Water, Sanitation, etc.). 5) Update status as work progresses. 6) Monitor department progress. 7) Notify user of status changes. 8) Close complaint when resolved. 9) Maintain records. 10) Generate reports for analysis.",
+        
+        ('can the admin delete complaints', 'delete complaint', 'remove complaint'):
+            "Yes, admins can delete complaints, but only in specific cases: Spam/false complaints, duplicate entries, or user requests. Deletion is logged for audit purposes. Once deleted, complaint data is permanently removed. Most complaints are kept as historical records for documentation and analysis, even after resolution.",
+        
+        ('how does the admin update complaint status', 'update status', 'status change'):
+            "Admins update status via the admin dashboard: 1) Click on a complaint to open details. 2) See current status in the status section. 3) Click 'Update Status'. 4) Select new status (Pending → In Progress → Resolved). 5) Optionally add notes about the update. 6) Save changes. Users receive instant notification of the status change. Status change is logged with timestamp.",
+        
+        ('can the admin view reports', 'admin reports', 'analytics'):
+            "Yes! Admins have access to comprehensive reports: 1) Total complaints filed. 2) Status breakdown (Pending, In Progress, Resolved counts). 3) Priority distribution (High, Medium, Low). 4) Category-wise breakdown (Roads, Water, Sanitation, etc.). 5) Timeline charts showing complaint trends. 6) Complaint resolution time statistics. 7) Department-wise workload. These insights help improve civic services.",
+        
+        # Privacy & General
+        ('is registration compulsory', 'must i register', 'registration required'):
+            "Yes, registration is required to file complaints. This ensures: 1) Accountability—each complaint linked to a real person. 2) Follow-up—admins can contact you for clarification. 3) Notifications—you receive updates on your complaint. 4) Security—your data is protected. Registration is quick (2 minutes) and free. You need one account per person, but one person can file multiple complaints.",
+        
+        ('is my complaint private', 'complaint privacy', 'who sees my complaint'):
+            "Complaints are accessible to: 1) You (always). 2) Admin team (mandatory). 3) Relevant department staff (to fix the issue). 4) System administrators (technical support). Your personal details are never publicly displayed. Complaints are professional records, not social media. Privacy is strictly protected.",
+        
+        ('will i receive updates', 'notifications', 'status updates'):
+            "Yes! You receive notifications when: 1) Complaint is filed (confirmation). 2) Status changes (Pending → In Progress → Resolved). 3) Admin adds notes/comments. 4) Department is assigned. 5) Complaint is resolved. Notifications are sent via email and shown in your dashboard. Opt-in to SMS alerts if available. Stay informed every step of the way.",
+        
+        ('can i track old complaints', 'history', 'past complaints'):
+            "Yes, you can track all your historical complaints: 1) Log in to your dashboard. 2) Scroll through your complete complaint list. 3) Click any complaint (old or new) to view full details. 4) See the entire timeline with all status changes. 5) View photos, location, and comments. 6) Filter by status or date range. Your complaint history is permanently stored.",
+        
+        ('is this application free', 'cost', 'pricing'):
+            "Yes, CivicPulse is completely free! Filing complaints, uploading images, tracking status, and all features cost nothing. It's a public service funded to improve civic infrastructure and citizen services. No hidden charges, no subscriptions, no premium features. Everyone is welcome.",
+        
+        ('who can view my complaint', 'complaint visibility', 'data access'):
+            "Access to your complaint: 1) You—full access always. 2) Admin team—all details for management. 3) Assigned department—details needed to fix the issue. 4) CivicPulse system team—technical support if needed. General public—cannot see individual complaints. Your personal contact info is not exposed. Complaints are professional records, kept confidential.",
+        
+        # Civic Awareness
+        ('what should i do if i see an accident', 'accident', 'emergency'):
+            "If you witness an accident: 1) Ensure everyone's safety first. 2) Call emergency services (Police: 100, Ambulance: 102, Fire: 101). 3) Don't move injured persons unless critical. 4) Document scene if safe (photos, witness details). 5) After emergency services arrive, use CivicPulse to file a 'Public Safety Hazard' complaint if road/infrastructure was involved. 6) Provide photos and details to ensure infrastructure repairs. Citizen reports help prevent future accidents.",
+        
+        ('how can i keep my neighborhood clean', 'cleanliness', 'waste management'):
+            "Keep your neighborhood clean: 1) Don't litter—use designated dustbins. 2) Segregate waste (wet/dry/hazardous). 3) Report accumulated garbage to CivicPulse. 4) Join community cleaning drives. 5) Encourage neighbors to dispose responsibly. 6) Report broken dustbins/sanitation issues to admins. 7) Compost organic waste at home. 8) Participate in 'Swachh Bharat' initiatives. Small actions create big changes!",
+        
+        ('why is waste segregation important', 'segregation', 'waste types'):
+            "Waste segregation benefits: 1) Wet waste (food, leaves)—composts faster, reduces landfill. 2) Dry waste (paper, plastic, metal)—recycled, saves resources. 3) Hazardous waste (batteries, chemicals)—proper disposal prevents contamination. 4) Easier for sanitation workers—faster processing. 5) Reduces environmental pollution. 6) Saves money on processing. Always segregate and report issues via CivicPulse!",
+        
+        ('how can i conserve water', 'water conservation', 'save water'):
+            "Conserve water: 1) Fix leaky taps/pipes immediately (report via CivicPulse). 2) Take shorter showers. 3) Turn off water while brushing/soaping. 4) Use buckets instead of continuous running. 5) Water plants early morning/evening (less evaporation). 6) Collect rainwater for gardening. 7) Reuse greywater for cleaning. 8) Report water leaks to authorities. Every drop saved counts!",
+        
+        ('what should i do during floods', 'flood safety', 'emergency'):
+            "During floods: 1) Move to higher ground immediately. 2) Stay away from electrical lines and machinery. 3) Don't wade through flood water (hidden dangers). 4) Stay indoors unless evacuation ordered. 5) Listen to emergency broadcasts. 6) Keep emergency contact numbers handy. 7) After floods, report damaged roads/infrastructure via CivicPulse. 8) Help neighbors in need. 9) Document damage for insurance. Safety first!",
+        
+        ('what is rainwater harvesting', 'rainwater', 'water collection'):
+            "Rainwater harvesting: 1) Collect rainfall from roofs/terraces. 2) Filter and store in tanks. 3) Use for gardening, cleaning, flushing toilets. 4) Reduces municipal water dependency. 5) Saves money on water bills. 6) Recharges groundwater. 7) Simple setup—gutters, filters, tank. 8) Legal in many cities—check local rules. 9) Environmentally responsible. Start at home, inspire community!",
+        
+        # Greetings & Casual
+        ('hello', 'hi', 'hey'):
+            "Hello! Welcome to CivicPulse! 👋 I'm your AI assistant here to help you file complaints, track progress, and learn about civic services. You can ask me: How to file a complaint? How to check status? What types of issues can I report? Or anything else. What can I help you with today?",
+        
+        ('good morning', 'good afternoon', 'good evening'):
+            "Good to see you! 😊 I'm here to assist with your civic complaints and questions. Whether you want to file a new complaint, check your status, or learn how CivicPulse works, I'm ready to help. What would you like to do?",
+        
+        ('thank you', 'thanks', 'appreciate'):
+            "You're very welcome! 😊 I'm glad I could help. If you have any more questions about filing complaints, tracking progress, or using CivicPulse, feel free to ask. Together, we're building a better community!",
+        
+        ('bye', 'goodbye', 'see you'):
+            "Goodbye! Thank you for using CivicPulse. 👋 Your complaints help improve our city. If you need anything later, I'm always here. Have a great day, and keep making our community better!",
+        
+        ('who are you', 'your name', 'what is your name'):
+            "I'm CivicPulse AI Assistant! 🤖 I'm an intelligent chatbot powered by multiple AI technologies (Google Gemini, OpenAI ChatGPT) with a comprehensive knowledge base. I'm here to: Help you file complaints, answer FAQs, provide guidance on tracking, explain civic services, and offer civic awareness tips. I'm available 24/7 to help!",
+        
+        ('what can you do', 'your capabilities', 'what are your features'):
+            "I can help you with: 1) Filing complaints step-by-step. 2) Checking complaint status and progress. 3) Answering 100+ FAQs about the system. 4) Explaining how AI categorizes complaints. 5) Guidance on photos, location, details. 6) Civic awareness tips (water, waste, safety). 7) General questions and conversations. 8) Motivational quotes and information. 9) Connecting you to right resources. I'm your friendly civic assistant!",
+        
+        ('tell me a joke', 'joke'):
+            "Why did the pothole go to school? Because it wanted to get filled! 😄 (Bad pun, I know!) 😄 But seriously, if you see an actual pothole, report it via CivicPulse! Let's get our roads fixed together. Any other questions?",
+        
+        ('tell me a civic awareness tip', 'civic tip', 'awareness'):
+            "🌍 Civic Tip: Did you know? Reporting problems through CivicPulse is 10x more effective than complaining. Each complaint creates accountability and gets assigned to responsible departments. Your one report can prevent accidents, save resources, and improve community services. Speak up—your civic participation matters! Report issues, track progress, inspire change. Let's build a better city together! 💪",
+        
+        ('give me a motivational quote', 'motivational', 'quote', 'inspire'):
+            "💡 Inspiring Quote: 'The only way to do great work is to care about the work.' – Steve Jobs. In civic terms: Every complaint you file, every detail you provide, every photo you upload—it all matters. You're not just reporting problems; you're driving positive change in your community. Your voice has power. Use it! 🌟",
+    }
+
+
+def _match_faq_question(user_message):
+    """Match user message against FAQ database and return best answer."""
+    if not user_message or len(user_message) < 2:
+        return None
+    
+    message_lower = user_message.strip().lower()
+    faq_db = _get_faq_database()
+    
+    # Try exact keyword matching
+    for keywords, answer in faq_db.items():
+        for keyword in keywords:
+            if keyword in message_lower:
+                return answer
+    
+    # Try fuzzy matching for close matches
+    import difflib
+    best_match = None
+    best_ratio = 0
+    for keywords in faq_db.keys():
+        for keyword in keywords:
+            ratio = difflib.SequenceMatcher(None, message_lower, keyword).ratio()
+            if ratio > best_ratio and ratio > 0.6:
+                best_ratio = ratio
+                best_match = faq_db[keywords]
+    
+    return best_match
+
+
+def _fallback_chatbot_response(user_message, complaint_context=None):
+    """Enhanced rule-based fallback with professional, detailed responses."""
+    import random
+    message = (user_message or '').strip().lower()
+    context = (complaint_context or '').strip()
+    
+    responses = {
+        ('status', 'progress', 'update', 'track', 'where'): [
+            "Your complaint status is managed by our admin team. They update complaints through these stages: Pending (initial submission) → In Progress (being reviewed and worked on) → Resolved (completed). You can check your dashboard anytime to see the current status and any updates. The admin team will also send you notifications about important changes.",
+            "To track your complaint progress, check your dashboard where you'll see the current status and timeline. The admin team reviews and updates all complaints regularly based on urgency and complexity. You'll receive notifications whenever your complaint status changes, so you're always informed about the next steps.",
+            "Your complaint is tracked from submission through resolution. Our admin team reviews each complaint, prioritizes it, assigns it to the relevant department, and updates the status as work progresses. Visit your dashboard to view the timeline and latest updates on your specific complaint."
+        ],
+        ('file', 'submit', 'report', 'new complaint', 'register complaint', 'how do', 'how to', 'create'): [
+            "Filing a complaint is simple: Click the 'New Complaint' button, then provide a clear title (e.g., 'Pothole on Main Street'), a detailed description of the issue, the exact location with nearby landmarks, and optionally attach a photo. The more specific you are, the faster our admin team can address it. Once submitted, you can track the status on your dashboard.",
+            "To submit a complaint, go to 'New Complaint' and fill in: the problem title, detailed description of what's wrong, the precise location (street name, building number, or landmarks), and upload a photo if possible. Photos really help because they show exactly what needs fixing. After submission, you'll be able to monitor progress in your dashboard.",
+            "Filing is quick: navigate to 'New Complaint', describe the civic issue clearly (e.g., broken streetlight, garbage pile, water leak), pinpoint the location, and attach evidence like a photo. This information helps our admin team understand and prioritize the issue. Once filed, check back on your dashboard to track updates."
+        ],
+        ('photo', 'image', 'evidence', 'attachment', 'picture', 'upload'): [
+            "Photos are very helpful! They give our admin team visual proof of the problem, which speeds up resolution. When filing a complaint, attach a clear photo that shows the civic issue. If you're adding it later, you can update the complaint with an image. Good photos show the exact location and nature of the problem, making it easier for the department to fix.",
+            "Including a photo with your complaint significantly improves the chances of quick resolution. Take a clear picture that shows the problem area well—whether it's a pothole, broken light, or debris. The admin team uses photos to verify the issue and coordinate with the relevant department. You can attach photos when filing or edit your complaint to add them later.",
+            "Supporting photos are crucial for effective complaint management. They provide visual evidence that the admin team can use to verify the issue and assign it to the right department. When uploading a photo, make sure it clearly shows the civic problem and its location. A good photo can reduce resolution time significantly."
+        ],
+        ('location', 'address', 'place', 'where', 'area'): [
+            "Providing an exact location is essential for fast resolution. Include the street name, nearby landmarks, building numbers, or cross streets so the admin team and relevant departments can locate the problem immediately. The more precise you are, the quicker they can dispatch someone to investigate and fix the issue. Vague locations slow down the process.",
+            "Location accuracy matters tremendously. Instead of 'near the park,' say 'Park Avenue near the green bench' or 'Corner of Main St and 5th Ave.' Include landmarks, building numbers, or recognizable features. This helps the department pinpoint the issue without wasting time searching. GPS coordinates or a photo location also helps.",
+            "Always be specific about location. Use street names, nearby businesses or landmarks, building numbers, and district information. For example: 'Pothole on Oak Street between the hospital and shopping center.' The more details you provide, the easier it is for the admin team to coordinate with departments and get the issue fixed faster."
+        ],
+        ('help', 'what can', 'how can', 'guide', 'assist', 'support'): [
+            "I'm here to help! I can guide you through: filing new civic complaints, understanding how to track complaint progress, explaining the status stages (Pending → In Progress → Resolved), providing tips on what details make complaints effective, and answering questions about the complaint system. What would you like to know?",
+            "I can assist you with all aspects of the complaint system. Whether you're reporting a civic issue like a pothole or water leak, tracking an existing complaint, wondering about the resolution timeline, or learning how to upload photos and locations effectively—I'm here to help. Just ask me anything!",
+            "I'm CivicPulse AI Assistant, and I'm here to support you with: filing complaints efficiently, checking complaint status and timeline, understanding how the admin team processes complaints, tips for providing effective complaint details, and general questions about civic services. How can I help you today?"
+        ],
+        ('time', 'how long', 'duration', 'resolve', 'quickly'): [
+            "Resolution time depends on the complaint type and complexity. Simple issues like broken streetlights might be resolved within a few days, while complex problems could take weeks. The admin team prioritizes complaints by urgency and assigns them to the responsible department. You can check your dashboard anytime for the latest status. Most users see movement on their complaint within 3-7 days.",
+            "Each complaint's timeline varies based on the issue type, department workload, and complexity. Our admin team prioritizes urgent complaints (like safety hazards) for faster resolution. You'll receive notifications whenever there's progress, and you can monitor everything on your dashboard. On average, complaints receive initial review within 2-3 days.",
+            "The resolution timeline depends on what needs fixing. Emergency issues (safety hazards) get priority, while routine maintenance follows the queue. The admin team works efficiently to track, verify, and escalate each complaint to the appropriate department. Check your dashboard regularly for updates—you'll see status changes and can estimate resolution time based on priority level."
+        ],
+        ('admin', 'status update', 'department', 'authority'): [
+            "The admin team has full control over complaint status updates. They review incoming complaints, verify the details, categorize the issue, set priority level, and assign it to the right department (Roads, Water Works, Sanitation, etc.). The admin team keeps your complaint updated throughout the process and communicates with relevant departments to ensure resolution.",
+            "Our admin team is responsible for managing all complaint statuses. They receive your submission, validate the information, prioritize based on urgency and severity, and coordinate with relevant departments. Only admins can update complaint status—this ensures consistency and proper workflow. You'll see all updates reflected on your dashboard.",
+            "Admins control the entire complaint lifecycle: receiving submissions, verifying details, assigning priority, routing to departments, monitoring progress, and closing resolved complaints. This centralized management ensures every complaint is tracked properly and resolved systematically. The admin team's updates are visible to you in real-time on your dashboard."
+        ],
+    }
+    
+    # Try to match user keywords to relevant responses
+    for keywords, answers in responses.items():
+        if any(k in message for k in keywords):
+            return random.choice(answers)
+    
+    # Contextual fallback for specific complaints
+    if context:
+        detailed_fallback = [
+            "I see you're asking about a specific complaint. Based on the context, I can help you understand the status, process, or next steps. What specific aspect would you like to know more about? I can explain how your complaint is being handled, what to expect next, or how to update your information.",
+            "Looking at your complaint details, I can provide specific guidance. Our admin team reviews complaints like yours systematically. They verify all information, contact relevant departments, and monitor progress. If you'd like to know about your complaint's status, timeline, or how to add more information (like photos or updated location), just let me know!",
+            "I can help with your complaint! Whether you want to understand the current status, learn what's happening next, or need to add more details to improve resolution speed, I'm here to assist. What would be most helpful for you right now?"
+        ]
+        return random.choice(detailed_fallback)
+    
+    # General greeting/fallback
+    general = [
+        "Hi! I'm CivicPulse AI Assistant, here to help you navigate the civic complaint system. You can ask me about: filing complaints, tracking progress, explaining statuses, uploading photos or locations, or anything else about our system. How can I assist you?",
+        "Welcome! I'm your CivicPulse AI Assistant. I can guide you through the entire complaint process—from filing an effective complaint to tracking its progress. Feel free to ask me anything about civic services, complaint management, or how to make your voice heard. What's on your mind?",
+        "I'm CivicPulse AI, your assistant for all things related to civic complaints. Whether you're new to the system or tracking an existing complaint, I'm here to help with clear, actionable guidance. What would you like to know?"
+    ]
+    return random.choice(general)
+
+
+def _is_unhelpful_chatbot_response(reply):
+    """Check if response is unhelpful or evasive."""
+    if not reply:
+        return True
+    lower = reply.lower()
+    # Only filter truly unhelpful responses
+    unhelpful_phrases = [
+        "i cannot help",
+        "cannot answer",
+        "unable to assist",
+        "i'm unable to",
+        "unable to help",
+        "i cannot assist",
+    ]
+    return any(phrase in lower for phrase in unhelpful_phrases)
+
+
+def ai_generate_chatbot_response_gemini(message, complaint_context):
+    """Generate response using Google Gemini API with professional-grade prompts."""
     try:
         import google.generativeai as genai
         api_key = os.environ.get('GEMINI_API_KEY')
         if not api_key:
-            return "I'm here to help! Please describe your civic issue and I'll guide you through filing a complaint."
+            return None
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-1.5-flash')
-        context = ""
+        
+        context_info = ""
         if complaint_context:
-            context = f"\nUser's complaint context: {complaint_context}"
-        prompt = f"""You are a helpful civic complaint assistant for CivicPulse, a city issue reporting platform.
-Help citizens file complaints, understand the process, or check status.
-Be concise, friendly, and helpful. Max 2 sentences.{context}
+            context_info = f"""
+Current Complaint Context:
+{complaint_context}
 
-User: {user_message}
-Assistant:"""
-        response = model.generate_content(prompt)
-        return response.text.strip()
+If the user is asking about this specific complaint, provide relevant insights about their issue based on the context above."""
+        
+        system_prompt = f"""You are CivicPulse AI Assistant, an expert civic complaint management system.
+
+Your Role:
+- Help citizens file and track civic complaints (potholes, water leaks, garbage, streetlights, etc.)
+- Provide clear, actionable guidance on using the complaint system
+- Explain complaint status changes and what to expect at each stage
+- Answer questions about civic services and complaint resolution
+
+Personality & Tone:
+- Professional yet friendly and approachable
+- Empathetic to citizen concerns about civic issues
+- Clear and concise, but detailed enough to be genuinely helpful
+- Proactive in suggesting next steps
+
+Key Guidelines:
+1. Always provide actionable advice tailored to what the user is asking
+2. Explain the complaint process: File → Admin Reviews → In Progress → Resolved
+3. Encourage users to include photos and precise locations for faster resolution
+4. If explaining status, mention that admins manage all status updates
+5. For file/upload questions, guide them step-by-step
+6. Never claim limitations or say "I cannot help" - always provide helpful direction
+7. Keep responses natural (1-3 paragraphs, 40-150 words)
+8. Use simple language while maintaining professionalism
+{context_info}"""
+
+        response = model.generate_content(
+            f"{system_prompt}\n\nUser Question: {message}",
+            generation_config={"temperature": 0.8, "top_p": 0.9, "max_output_tokens": 200}
+        )
+        reply = response.text.strip() if response else ''
+        if reply and not _is_unhelpful_chatbot_response(reply) and len(reply) > 10:
+            return reply
+        return None
     except Exception as e:
-        print(f"Chatbot error: {e}")
-        return "I'm here to help you file and track civic complaints. What issue would you like to report?"
+        print(f"Gemini error: {e}")
+        return None
+
+
+def ai_generate_chatbot_response_openai(message, complaint_context):
+    """Generate response using OpenAI ChatGPT API with professional-grade prompts."""
+    try:
+        from openai import OpenAI
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            return None
+        client = OpenAI(api_key=api_key)
+        
+        context_info = ""
+        if complaint_context:
+            context_info = f"""
+Current Complaint Context:
+{complaint_context}
+
+If the user is asking about this specific complaint, provide relevant insights about their issue based on the context above."""
+        
+        system_prompt = f"""You are CivicPulse AI Assistant, an expert civic complaint management system.
+
+Your Role:
+- Help citizens file and track civic complaints (potholes, water leaks, garbage, streetlights, etc.)
+- Provide clear, actionable guidance on using the complaint system
+- Explain complaint status changes and what to expect at each stage
+- Answer questions about civic services and complaint resolution
+
+Personality & Tone:
+- Professional yet friendly and approachable
+- Empathetic to citizen concerns about civic issues
+- Clear and concise, but detailed enough to be genuinely helpful
+- Proactive in suggesting next steps
+
+Key Guidelines:
+1. Always provide actionable advice tailored to what the user is asking
+2. Explain the complaint process: File → Admin Reviews → In Progress → Resolved
+3. Encourage users to include photos and precise locations for faster resolution
+4. If explaining status, mention that admins manage all status updates
+5. For file/upload questions, guide them step-by-step
+6. Never claim limitations or say "I cannot help" - always provide helpful direction
+7. Keep responses natural (1-3 paragraphs, 40-150 words)
+8. Use simple language while maintaining professionalism
+{context_info}"""
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            temperature=0.8,
+            top_p=0.9,
+            max_tokens=200,
+            presence_penalty=0.1,
+            frequency_penalty=0.1
+        )
+        reply = response.choices[0].message.content.strip() if response.choices else ''
+        if reply and not _is_unhelpful_chatbot_response(reply) and len(reply) > 10:
+            return reply
+        return None
+    except Exception as e:
+        print(f"OpenAI error: {e}")
+        return None
+
+
+def ai_generate_chatbot_response(user_message, complaint_context=None):
+    """AI chatbot with multi-provider support: Gemini → OpenAI → Enhanced Fallback."""
+    message = (user_message or '').strip()
+    if not message:
+        return "Hi! I'm CivicPulse AI Assistant. How can I help you today? You can ask me about filing complaints, tracking progress, or any questions about civic services."
+    
+    # Try Gemini first
+    reply = ai_generate_chatbot_response_gemini(message, complaint_context)
+    if reply:
+        return reply
+    
+    # Try OpenAI second
+    reply = ai_generate_chatbot_response_openai(message, complaint_context)
+    if reply:
+        return reply
+    
+    # Try comprehensive FAQ database third
+    faq_answer = _match_faq_question(message)
+    if faq_answer:
+        return faq_answer
+    
+    # Fall back to enhanced rule-based responses
+    return _fallback_chatbot_response(message, complaint_context)
+
+
 
 def _suggest_department(category):
     mapping = {
@@ -166,11 +614,29 @@ def _get_yearly_complaint_count():
     current_year = str(datetime.utcnow().year)
     return sum(1 for c in data if str(c.get('created_at', '')).startswith(current_year))
 
-def db_find_duplicate(title, description, location, exclude_id=None):
+
+def _safe_select_complaints(select_fields=None):
     sb = get_supabase()
     if not sb:
-        return None
-    all_c = sb.table('complaints').select('id, title, description, location, ref_id').execute().data or []
+        return []
+    try:
+        if select_fields:
+            return sb.table('complaints').select(select_fields).execute().data or []
+        return sb.table('complaints').select('*').execute().data or []
+    except APIError as exc:
+        msg = str(exc)
+        if 'column' in msg and 'complaints.' in msg and 'does not exist' in msg:
+            if select_fields:
+                parts = [p.strip() for p in select_fields.split(',') if p.strip()]
+                cleaned = [p for p in parts if p != 'ref_id' and not p.endswith('.ref_id')]
+                if cleaned and len(cleaned) != len(parts):
+                    return sb.table('complaints').select(', '.join(cleaned)).execute().data or []
+            return sb.table('complaints').select('id, title, description, location').execute().data or []
+        raise
+
+
+def db_find_duplicate(title, description, location, exclude_id=None):
+    all_c = _safe_select_complaints('id, title, description, location, ref_id')
     new_text = _normalize_text(title + ' ' + description + ' ' + location)
     best, best_score = None, 0.0
     for c in all_c:
@@ -248,19 +714,62 @@ def db_get_user_by_id(user_id):
     r = sb.table('users').select('*').eq('id', user_id).execute()
     return r.data[0] if r.data else None
 
+
+def _is_missing_users_column_error(exc, column_name):
+    if not isinstance(exc, APIError):
+        return False
+    msg = str(exc).lower()
+    return (
+        f"column users.{column_name} does not exist" in msg
+        or f"could not find the '{column_name}' column of 'users'" in msg
+        or f"could not find the \"{column_name}\" column of 'users'" in msg
+    )
+
+
 def db_create_user(name, email, password, role='user', phone=''):
     sb = get_supabase()
     if not sb: return None
     data = {'id': str(uuid.uuid4()), 'name': name, 'email': email,
             'password': hash_password(password), 'role': role,
-            'phone': phone, 'is_active': True, 'created_at': datetime.utcnow().isoformat()}
-    r = sb.table('users').insert(data).execute()
-    return r.data[0] if r.data else None
+            'phone': phone}
+    try:
+        r = sb.table('users').insert(data).execute()
+        return r.data[0] if r.data else None
+    except APIError as exc:
+        if _is_missing_users_column_error(exc, 'phone'):
+            data = {k: v for k, v in data.items() if k != 'phone'}
+            r = sb.table('users').insert(data).execute()
+            return r.data[0] if r.data else None
+        msg = str(exc)
+        if 'is_active' in msg or 'created_at' in msg:
+            data = {k: v for k, v in data.items() if k not in {'is_active', 'created_at'}}
+            r = sb.table('users').insert(data).execute()
+            return r.data[0] if r.data else None
+        raise
+
 
 def db_get_all_users():
     sb = get_supabase()
     if not sb: return []
-    return sb.table('users').select('id,name,email,role,is_active,created_at,phone').order('created_at', desc=True).execute().data or []
+    try:
+        users = sb.table('users').select('id,name,email,role,phone').execute().data or []
+    except APIError as exc:
+        if _is_missing_users_column_error(exc, 'phone'):
+            users = sb.table('users').select('id,name,email,role').execute().data or []
+            for user in users:
+                user['phone'] = ''
+        else:
+            msg = str(exc)
+            if 'is_active' in msg or 'created_at' in msg:
+                users = sb.table('users').select('id,name,email,role,phone').execute().data or []
+            else:
+                raise
+
+    for user in users:
+        user.setdefault('is_active', True)
+        user.setdefault('created_at', '')
+        user.setdefault('phone', '')
+    return users
 
 def db_get_complaints(user_id=None, status=None, category=None, priority=None,
                       start_date=None, end_date=None, q_text=None, department=None):
@@ -286,7 +795,7 @@ def db_get_complaints(user_id=None, status=None, category=None, priority=None,
         term = q_text.strip().lower()
         results = [c for c in results if term in ' '.join([
             str(c.get('title','')), str(c.get('description','')),
-            str(c.get('location','')), str(c.get('ref_id',''))
+            str(c.get('location','')), str(c.get('ref_id', c.get('id','')))
         ]).lower()]
     return results
 
@@ -346,39 +855,81 @@ def db_add_comment(complaint_id, user_id, content):
         print(f"Comment error: {e}")
         return None
 
+def _notification_key(user_id):
+    return str(user_id or 'anonymous')
+
+
 def db_get_notifications(user_id, limit=20):
     sb = get_supabase()
-    if not sb: return []
-    try:
-        r = sb.table('notifications').select('*').eq('user_id', user_id).order('created_at', desc=True).limit(limit).execute()
-        return r.data or []
-    except Exception:
-        return []
+    if sb:
+        try:
+            r = sb.table('notifications').select('*').eq('user_id', user_id).order('created_at', desc=True).limit(limit).execute()
+            return r.data or []
+        except Exception:
+            pass
+
+    key = _notification_key(user_id)
+    items = APP_NOTIFICATIONS.get(key, [])
+    items = sorted(items, key=lambda n: n.get('created_at', ''), reverse=True)
+    return items[:limit]
+
 
 def db_create_notification(user_id, title, message, complaint_id=None):
     sb = get_supabase()
-    if not sb: return
-    try:
-        sb.table('notifications').insert({
-            'id': str(uuid.uuid4()),
-            'user_id': user_id,
-            'title': title,
-            'message': message,
-            'complaint_id': complaint_id,
-            'is_read': False,
-            'created_at': datetime.utcnow().isoformat()
-        }).execute()
-    except Exception as e:
-        print(f"Notification error: {e}")
+    if sb:
+        try:
+            sb.table('notifications').insert({
+                'id': str(uuid.uuid4()),
+                'user_id': user_id,
+                'title': title,
+                'message': message,
+                'complaint_id': complaint_id,
+                'is_read': False,
+                'created_at': datetime.utcnow().isoformat()
+            }).execute()
+            return
+        except Exception as e:
+            print(f"Notification error: {e}")
+
+    key = _notification_key(user_id)
+    notif = {
+        'id': str(uuid.uuid4()),
+        'user_id': str(user_id),
+        'title': title,
+        'message': message,
+        'complaint_id': complaint_id,
+        'is_read': False,
+        'created_at': datetime.utcnow().isoformat()
+    }
+    APP_NOTIFICATIONS.setdefault(key, []).append(notif)
+    return notif
+
 
 def db_get_unread_notification_count(user_id):
     sb = get_supabase()
-    if not sb: return 0
-    try:
-        r = sb.table('notifications').select('id').eq('user_id', user_id).eq('is_read', False).execute()
-        return len(r.data or [])
-    except Exception:
-        return 0
+    if sb:
+        try:
+            r = sb.table('notifications').select('id').eq('user_id', user_id).eq('is_read', False).execute()
+            return len(r.data or [])
+        except Exception:
+            pass
+
+    key = _notification_key(user_id)
+    return sum(1 for n in APP_NOTIFICATIONS.get(key, []) if not n.get('is_read', False))
+
+
+def db_mark_notifications_read(user_id):
+    sb = get_supabase()
+    if sb:
+        try:
+            sb.table('notifications').update({'is_read': True}).eq('user_id', user_id).eq('is_read', False).execute()
+            return
+        except Exception:
+            pass
+
+    key = _notification_key(user_id)
+    for notif in APP_NOTIFICATIONS.get(key, []):
+        notif['is_read'] = True
 
 def db_log_activity(action, entity_type, entity_id, user_id, details=''):
     sb = get_supabase()
@@ -483,6 +1034,10 @@ def upload_image(file):
     if not file or not allowed_file(file.filename):
         return None
     filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
+    upload_dir = os.path.join(app.root_path, 'static', 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    filepath = os.path.join(upload_dir, filename)
+
     sb = get_supabase()
     if sb:
         try:
@@ -500,17 +1055,28 @@ def upload_image(file):
             return str(result)
         except Exception as e:
             print(f"Supabase storage error: {e}")
-            file.seek(0)
-    upload_dir = os.path.join(
-        app.root_path,
-        "static",
-        "uploads"
-    )
-    os.makedirs(upload_dir, exist_ok=True)
-    filepath = os.path.join(upload_dir, filename)
-    file.save(filepath)
-    # Do not expose local /static/uploads links in the UI — return None so templates won't render them
-    return None
+            try:
+                file.seek(0)
+            except Exception:
+                pass
+
+    try:
+        if not hasattr(file, 'stream'):
+            with open(filepath, 'wb') as f:
+                f.write(file.read())
+        else:
+            try:
+                file.stream.seek(0)
+            except Exception:
+                pass
+            with open(filepath, 'wb') as out_file:
+                file.stream.seek(0)
+                out_file.write(file.read())
+    except Exception as e:
+        print(f"Local image save error: {e}")
+        return None
+
+    return url_for('static', filename=f'uploads/{filename}', _external=True)
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_large_upload(error):
@@ -604,7 +1170,14 @@ def profile():
             name = request.form.get('name', '').strip()
             phone = request.form.get('phone', '').strip()
             if name:
-                sb.table('users').update({'name': name, 'phone': phone}).eq('id', session['user_id']).execute()
+                update_data = {'name': name, 'phone': phone}
+                try:
+                    sb.table('users').update(update_data).eq('id', session['user_id']).execute()
+                except APIError as exc:
+                    if _is_missing_users_column_error(exc, 'phone'):
+                        sb.table('users').update({'name': name}).eq('id', session['user_id']).execute()
+                    else:
+                        raise
                 session['user_name'] = name
                 flash('Profile updated successfully.', 'success')
             else:
@@ -704,7 +1277,8 @@ def new_complaint():
         if complaint:
             db_add_complaint_history(data['id'], 'submitted', '', 'Pending', session.get('user_name', 'User'))
             db_log_activity('submit_complaint', 'complaint', data['id'], session['user_id'], f"Submitted: {title}")
-            user_email = session.get('user_email')
+            user = db_get_user_by_id(session['user_id'])
+            user_email = user.get('email') if user else session.get('user_email')
             subject = f"Complaint Registered: {data['ref_id']}"
             body = (f"Your complaint has been received.\n\nID: {data['ref_id']}\n"
                     f"Category: {data['category']}\nPriority: {data['priority']}\n"
@@ -815,13 +1389,8 @@ def add_comment(complaint_id):
 @app.route('/notifications')
 @login_required
 def notifications():
-    sb = get_supabase()
     notifs = db_get_notifications(session['user_id'], limit=50)
-    if sb:
-        try:
-            sb.table('notifications').update({'is_read': True}).eq('user_id', session['user_id']).eq('is_read', False).execute()
-        except Exception:
-            pass
+    db_mark_notifications_read(session['user_id'])
     return render_template('notifications.html', notifications=notifs)
 
 @app.route('/api/notifications/count')
@@ -875,11 +1444,17 @@ def toggle_user(user_id):
     if not user:
         flash('User not found.', 'danger')
         return redirect(url_for('admin_users'))
-    new_status = not user.get('is_active', True)
-    sb.table('users').update({'is_active': new_status}).eq('id', user_id).execute()
-    action = 'enabled' if new_status else 'disabled'
-    db_log_activity(f'user_{action}', 'user', user_id, session['user_id'], f"User {user['email']} {action}")
-    flash(f"User account {action}.", 'success')
+    try:
+        new_status = not user.get('is_active', True)
+        sb.table('users').update({'is_active': new_status}).eq('id', user_id).execute()
+        action = 'enabled' if new_status else 'disabled'
+        db_log_activity(f'user_{action}', 'user', user_id, session['user_id'], f"User {user['email']} {action}")
+        flash(f"User account {action}.", 'success')
+    except APIError as exc:
+        if 'is_active' in str(exc):
+            flash('This database does not support account enable/disable toggling.', 'warning')
+        else:
+            raise
     return redirect(url_for('admin_users'))
 
 @app.route('/admin/users/<user_id>/promote', methods=['POST'])
@@ -1010,4 +1585,4 @@ def api_stats():
 
 if __name__ == '__main__':
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)

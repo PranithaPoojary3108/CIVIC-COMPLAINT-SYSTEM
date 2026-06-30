@@ -44,6 +44,11 @@
       <span class="status-badge status-{{ complaint.status | lower | replace(' ', '-') }}">
         <span class="status-dot-sm"></span> {{ complaint.status }}
       </span>
+      {% if session.role == 'admin' %}
+      <span class="sentiment-tag sentiment-neutral"><i class="bi bi-shield-lock"></i> Admin updates progress</span>
+      {% else %}
+      <span class="sentiment-tag sentiment-neutral"><i class="bi bi-person-gear"></i> Admin controls status</span>
+      {% endif %}
       {% if complaint.sentiment %}
       <span class="sentiment-tag sentiment-{{ complaint.sentiment | lower }}">
         <i class="bi bi-emoji-{% if complaint.sentiment == 'Frustrated' %}angry{% elif complaint.sentiment == 'Urgent' %}dizzy{% else %}neutral{% endif %}"></i>
@@ -77,6 +82,13 @@
     <div class="detail-section">
       <h3 class="detail-section-title">Description</h3>
       <p class="detail-description">{{ complaint.description }}</p>
+    </div>
+
+    <div class="detail-section">
+      <h3 class="detail-section-title"><i class="bi bi-arrow-repeat"></i> Progress Update</h3>
+      <div class="progress-note">
+        Complaint progress is updated by the admin team. Once the case is reviewed, the status may move from Pending to In Progress and then to Resolved.
+      </div>
     </div>
 
     <div class="detail-info-grid">

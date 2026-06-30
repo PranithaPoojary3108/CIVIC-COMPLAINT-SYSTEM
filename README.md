@@ -1,8 +1,8 @@
 ﻿# CivicPulse 🏙️
 ### Smart Civic Complaint Management System
-*Flask · Supabase · Gemini AI*
+*Flask · Supabase · Gemini AI + ChatGPT*
 
-A full-stack web application where citizens report civic issues (potholes, garbage, broken streetlights, water leakage) and AI automatically categorizes, prioritizes, and summarizes each complaint in real time.
+A full-stack web application where citizens report civic issues (potholes, garbage, broken streetlights, water leakage) and AI automatically categorizes, prioritizes, and summarizes each complaint in real time. Features **multi-provider AI** with intelligent fallback.
 
 ---
 
@@ -11,20 +11,25 @@ A full-stack web application where citizens report civic issues (potholes, garba
 ### Citizen Side
 - **Sign up / Login** with email and password
 - **Submit complaints** with title, description, location, and photo upload
-- **AI analysis** — Gemini categorizes, sets priority, and writes a summary live as you type
+- **AI analysis** — Gemini/ChatGPT categorizes, sets priority, and writes a summary live as you type
 - **Track status** — Pending → In Progress → Resolved with a visual timeline
+- **Smart Chatbot** — AI-powered assistant using Gemini, ChatGPT, or rule-based fallback
 
 ### Admin Side
 - **Admin dashboard** with live stats (total, pending, in-progress, resolved)
 - **Change complaint status** directly from the table
 - **Priority breakdown** and category analytics charts
 - **Delete complaints**
+- **User management** with role-based access
 
-### AI Features (Gemini 1.5 Flash)
-- Auto-categorizes: Garbage, Pothole, Streetlight, Water Leakage, Road Damage, Public Safety, Noise
-- Sets priority: Low / Medium / High
-- Generates a one-sentence summary
-- **Falls back gracefully** to rule-based logic if API key is missing
+### AI Features
+- **Multi-Provider Support**: 
+  - Primary: Google Gemini 1.5 Flash
+  - Secondary: OpenAI ChatGPT (gpt-3.5-turbo)
+  - Fallback: Smart rule-based system
+- **Complaint Analysis**: Auto-categorizes and prioritizes issues
+- **AI Chatbot**: Friendly assistant for filing complaints and tracking progress
+- **Intelligent Fallback**: Seamlessly switches between providers if one fails
 
 ---
 
@@ -35,7 +40,7 @@ A full-stack web application where citizens report civic issues (potholes, garba
 | Backend   | Flask (Python)                    |
 | Database  | Supabase (PostgreSQL)             |
 | Storage   | Supabase Storage (images)         |
-| AI        | Google Gemini 1.5 Flash           |
+| AI        | Google Gemini 1.5 + OpenAI ChatGPT|
 | Frontend  | Vanilla HTML/CSS/JS (no framework)|
 | Fonts     | Inter + DM Serif Display          |
 
@@ -65,19 +70,21 @@ pip install -r requirements.txt
 - Supabase Dashboard → Storage → New bucket
 - Name: `complaint-images`, set to **Public**
 
-### 5. Get a Gemini API key
-- [aistudio.google.com](https://aistudio.google.com) → Get API Key (free tier available)
+### 5. Get API keys (at least one for AI)
+- **Gemini** (free): [aistudio.google.com/app/apikeys](https://aistudio.google.com/app/apikeys)
+- **OpenAI** (paid, but includes free trial credits): [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 
 ### 6. Create `.env`
 ```bash
 cp .env.example .env
 ```
-Fill in:
+Fill in (at minimum: Supabase + one AI API key):
 ```
 SECRET_KEY=any-random-string-here
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_KEY=eyJ...
-GEMINI_API_KEY=AIza...
+GEMINI_API_KEY=AIza...          # (optional if using OpenAI)
+OPENAI_API_KEY=sk-proj-...      # (optional if using Gemini)
 ```
 
 ### 7. Run
@@ -91,6 +98,18 @@ Open [http://localhost:5000](http://localhost:5000)
 Email:    admin@civic.gov
 Password: admin123
 ```
+
+---
+
+## How AI Chatbot Works
+
+The chatbot uses a **multi-provider fallback chain**:
+
+1. **Tries Gemini** → If API key exists and responds well
+2. **Tries OpenAI** → If Gemini fails and API key exists
+3. **Uses Rule-Based Fallback** → Smart keyword matching for instant responses
+
+Each response is personalized to help with civic complaints, filing complaints, or tracking progress. The system automatically selects the best provider based on availability.
 
 ---
 
@@ -126,14 +145,16 @@ civic-complaint/
 3. Build command: `pip install -r requirements.txt`
 4. Start command: `gunicorn app:app`
 5. Add environment variables in Render dashboard
+6. Add at least one API key (GEMINI_API_KEY or OPENAI_API_KEY)
 
 ---
 
 ## How to explain this in your internship interview
 
-> "I built a full-stack civic complaint management system using Flask and Supabase. The interesting part is the AI integration — I used Google Gemini to automatically analyze each complaint when it's submitted. It categorizes the issue (garbage, pothole, etc.), assigns a priority level, and generates a plain-English summary. There's also a live preview in the form that shows you the AI's analysis as you type, using a debounced API call to my backend. The system has separate citizen and admin interfaces, image upload to Supabase Storage, and role-based access control."
+> "I built a full-stack civic complaint management system using Flask and Supabase. The unique part is the **multi-provider AI integration**. For complaint analysis and the chatbot, I implemented a fallback system that tries Google Gemini first, then falls back to OpenAI's ChatGPT if needed, and finally uses smart rule-based logic if neither API is available. This ensures the app works reliably even if one AI provider is down or the API key isn't configured. The system analyzes complaints in real-time, categorizes civic issues, sets priorities, and provides an intelligent chatbot assistant. It has separate citizen and admin interfaces with role-based access, image uploads to Supabase, and analytics dashboards."
 
 ---
 
 ## License
 MIT
+

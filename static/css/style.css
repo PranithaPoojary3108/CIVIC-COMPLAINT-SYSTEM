@@ -844,6 +844,11 @@ a:hover { text-decoration: underline; }
 
 .detail-section { margin-bottom: 24px; }
 .detail-section-title { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 10px; }
+.progress-note {
+  background: #f8fafc; border: 1px solid var(--border); border-left: 4px solid var(--amber);
+  padding: 10px 12px; border-radius: var(--radius-sm); color: var(--text-muted);
+  margin-top: 8px;
+}
 .detail-description { font-size: 15px; line-height: 1.7; color: var(--text); }
 
 .detail-info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 24px; }
@@ -1419,6 +1424,8 @@ a:hover { text-decoration: underline; }
   display: inline-block; background: #fee2e2; color: #991b1b;
   font-size: 10px; padding: 1px 5px; border-radius: 4px; margin-top: 2px;
 }
+.complaint-preview { margin-top: 8px; }
+.complaint-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
 .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .btn-xs { font-size: 11px; padding: 3px 8px; }
 
